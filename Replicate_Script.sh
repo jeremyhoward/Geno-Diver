@@ -1,3 +1,5 @@
+#!/bin/bash
+
 ## Delete old parameter file ##
 rm -rf ./parameterfile.txt || true
 ## Create Parameter File to Generate New Sequence information ##
