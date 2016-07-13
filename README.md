@@ -22,7 +22,7 @@ Source Code Files:
 - PopulationSimulator.cpp
 - Simulation_Functions.cpp
 - makefile
-
+- How_to_Compile.txt
 
 If there are any questions or comments please contact me at "jthoward@ncsu.edu".
 
