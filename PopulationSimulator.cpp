@@ -23,16 +23,17 @@ using namespace std;
 /*******************************************/
 /* Functions from Simulation_Functions.cpp */
 /*******************************************/
-void pedigree_inverse(vector <int> const &f_anim, vector <int> const &f_sire, vector <int> const &f_dam, double* output, double* output_qs_u);
-void pedigree_inbreeding(string phenotypefile, double* output_qs_u);
+void pedigree_inverse(vector <int> const &f_anim, vector <int> const &f_sire, vector <int> const &f_dam, double* output, double* output_f);
+void pedigree_inbreeding(string phenotypefile, double* output_f);
 void ld_decay_estimator(string outputfile, string mapfile, string lineone, vector < string > const &genotypes);
 void frequency_calc(vector < string > const &genotypes, double* output_freq);
 void grm_noprevgrm(double* input_m, vector < string > const &genotypes, double* output_grm, float scaler);
 void grm_prevgrm(double* input_m, string genofile, vector < string > const &newgenotypes, double* output_grm12, double* output_grm22, float scaler,vector < int > &animalvector, vector < double > &phenotypevector);
 void generatesummaryqtl(string inputfilehap, string inputfileqtl, string outputfile, int generations,vector < int > const &idgeneration, vector < double > const &tempaddvar, vector < double > const &tempdomvar,  vector < int > const &tempdeadfit);
-void generatessummarydf(string inputfilehap, string outputfile, int generations);
+void generatessummarydf(string inputfilehap, string outputfile, int generations, vector < double > const &tempexphet);
 void pcg_solver(double* lhs, double* rhs, double* solutions, int dimen, int* solvediter);
 void direct_solver(double* lhs, double* rhs, double* solutions, int dimen);
+void pedigree_relationship(string phenotypefile, vector <int> const &parent_id, double* output_subrelationship);
 
 
 /* Function to create Beta Distribution. Random library does not produce it; stems from a gamma. */
@@ -182,7 +183,7 @@ int main()
     cout<<"#######                                            #####################\n";
     cout<<"########################################################################\n";
     cout<<"------------------------------------------------------------------------\n";
-    cout<<"- GENO-DIVER                                                          -\n";
+    cout<<"- GENO-DIVER                                                           -\n";
     cout<<"- Complex Genomic Simulator                                            -\n";
     cout<<"- Authors: Jeremy T. Howard (jthoward@ncsu.edu)                        -\n";
     cout<<"-          Francesco Tiezzi (f_tiezzi@ncsu.edu)                        -\n";
@@ -939,6 +940,14 @@ int main()
         search++;
         if(search >= parm.size()){logfile << endl << "Couldn't find 'SELECTION:' variable in parameter file!" << endl; exit (EXIT_FAILURE);}
     }
+    if(Selection != "random" && Selection != "phenotype" && Selection != "true_bv" && Selection != "ebv")
+    {
+        logfile << endl << "SELECTION (" << Selection << ") isn't an option! Check parameter file!" << endl; exit (EXIT_FAILURE);
+    }
+    if(SelectionDir != "low" && SelectionDir != "high")
+    {
+        logfile << endl << "SELECTIONDIR (" << SelectionDir << ") isn't an option! Check parameter file!" << endl; exit (EXIT_FAILURE);
+    }
     search = 0;
     while(1)
     {
@@ -954,6 +963,18 @@ int main()
         }
         search++; if(search >= parm.size()){logfile << endl << "Couldn't find 'SOLVER_INVERSE:' variable in parameter file!" << endl; exit (EXIT_FAILURE);}
     }
+    if(EBV_Calc != "pedigree" && EBV_Calc != "genomic" && EBV_Calc != "ROH")
+    {
+        logfile << endl << "SOLVER_INVERSE first option (" << EBV_Calc << ") isn't an option! Check parameter file!" << endl; exit (EXIT_FAILURE);
+    }
+    if(Solver != "direct" && Solver != "pcg")
+    {
+        logfile << endl << "SOLVER_INVERSE second option (" << Solver << ") isn't an option! Check parameter file!" << endl; exit (EXIT_FAILURE);
+    }
+    if(Geno_Inverse != "cholesky" && Geno_Inverse != "recursion")
+    {
+        logfile << endl << "SOLVER_INVERSE third option (" << Geno_Inverse << ") isn't an option! Check parameter file!" << endl; exit (EXIT_FAILURE);
+    }
     search = 0;
     while(1)
     {
@@ -965,6 +986,10 @@ int main()
             logfile << "        - Mating Criteria:\t\t\t\t\t\t\t\t\t\t" << "'" << Mating << "'" << endl; break;
         }
         search++; if(search >= parm.size()){logfile << endl << "Couldn't find 'MATING:' variable in parameter file!" << endl; exit (EXIT_FAILURE);}
+    }
+    if(Mating!="random" && Mating!="random5" && Mating!="random25" && Mating!="random125" && Mating!="minPedigree" && Mating!="minGenomic" && Mating != "minROH")
+    {
+        logfile << endl << "MATING (" << Mating << ") isn't an option! Check parameter file!" << endl; exit (EXIT_FAILURE);
     }
     search = 0;
     while(1)
@@ -978,6 +1003,10 @@ int main()
             logfile << "        - Maximum Age Parents can Remain in Population:\t\t\t\t\t\t\t" << "'" << MaximumAge << "'" << endl; break;
         }
         search++; if(search >= parm.size()){logfile << endl << "Couldn't find 'CULLING:' variable in parameter file!" << endl; exit (EXIT_FAILURE);}
+    }
+    if(Culling != "random" && Culling != "phenotype" && Culling != "true_bv" && Culling != "ebv")
+    {
+        logfile << endl << "CULLING (" << Culling << ") isn't an option! Check parameter file!" << endl; exit (EXIT_FAILURE);
     }
     logfile << "    - Output Options" << endl;
     search = 0;
@@ -1075,6 +1104,7 @@ int main()
     vector < int > NumDeadFitness((GENERATIONS + 1),0);                             /* Number of dead due to fitness by generation */
     vector < double > AdditiveVar((GENERATIONS + 1),0.0);                           /* sum of 2pqa^2 */
     vector < double > DominanceVar((GENERATIONS + 1),0.0);                          /* sum of (2pqd)+^2 */
+    vector < double > ExpectedHeter((GENERATIONS + 1),0.0);                         /* Expected Heterozygosity: (1 - p^2 - q^2) / markers */
     vector < QTL_new_old > population_QTL;                                          /* Hold in a vector of QTL_new_old Objects */
     vector < Animal > population;                                                   /* Hold in a vector of Animal Objects */
     vector < hapLibrary > haplib;                                                   /* Vector of haplotype library objects */
@@ -2391,6 +2421,18 @@ int main()
         }
         logfile << "   - Number of Founder's that Died due to fitness: " << LethalFounder << endl;
         NumDeadFitness[0] = LethalFounder;
+        double expectedhet = 0.0; vector < string > population_marker;
+        for(int i = 0; i < population.size(); i++){population_marker.push_back(population[i].getMarker());}
+        double* tempfreqexphet = new double[population_marker[0].size()];               /* Array that holds SNP frequencies that were declared as Markers*/
+        frequency_calc(population_marker, tempfreqexphet);                              /* Function to calculate snp frequency */
+        for(int i = 0; i < population_marker[0].size(); i++)
+        {
+            expectedhet += (1 - ((tempfreqexphet[i]*tempfreqexphet[i]) + ((1-tempfreqexphet[i])*(1-tempfreqexphet[i]))));
+        }
+        expectedhet /= double(population_marker[0].size());
+        population_marker.clear(); delete [] tempfreqexphet;
+        ExpectedHeter[0] = expectedhet;
+        logfile << "   - Calculated expected heterozygosity: " << expectedhet << endl;
         logfile << "Finished Creating Founder Population (Size: " << population.size() << ")." << endl << endl;
         // Compute mean genotypic value in founder generation
         double BaseGenGV = 0.0; double BaseGenBV = 0.0; double BaseGenDD = 0.0;
@@ -2412,65 +2454,72 @@ int main()
         // Create Haplotype Library based on Founder Generation and compute diagonals of relationship matrix                //
         //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
         logfile << "Begin Creating Haplotype Library and assigning haplotypes IDs to individuals: " << endl;
-        vector < string > AnimalPatHap;                                                                     /* Stores haplotype ID's in a string */
-        vector < string > AnimalMatHap;                                                                     /* Stores haplotype ID's in a string */
+        vector < string > AnimalPatHap(population.size(),"");                                               /* Stores haplotype ID's in a string */
+        vector < string > AnimalMatHap(population.size(),"");                                               /* Stores haplotype ID's in a string */
         for(int i = 0; i < haplib.size(); i++)
         {
-            vector < string > haplotypes;
+            /* First step is to get number of unique haplotypes to set dimension of Haplotype similarity matrix (H) */
+            /* stores each unique ROH roh */
+            vector < string > haplotypes(population.size()*2,"");
+            vector < string > animalpatstring(population.size(),"");
+            vector < string > animalmatstring(population.size(),"");
+            /* loop across animals */
+            #pragma omp parralel for
             for(int j = 0; j < population.size(); j++)
             {
                 if(i == 0){AnimalPatHap.push_back(""); AnimalMatHap.push_back("");}
-                string temp = (population[j].getMarker()).substr(haplib[i].getStart(),haplotypesize);       /* Grab specific haplotype */
-                string homo1 = temp;                                                                        /* Paternal haplotypes */
-                string homo2 = temp;                                                                        /* Maternal haplotypes */
-                for(int g = 0; g < temp.size(); g++)
+                string homo1 =  (population[j].getMarker()).substr(haplib[i].getStart(),haplotypesize);     /* Paternal haplotypes */
+                string homo2 = homo1;                                                                       /* Maternal haplotypes */
+                for(int g = 0; g < homo1.size(); g++)
                 {
                     if(homo1[g] == '0'){homo1[g] = '1';} if(homo2[g] == '0'){homo2[g] = '1';}               /* a1a1 genotype */
                     if(homo1[g] == '2'){homo1[g] = '2';} if(homo2[g] == '2'){homo2[g] = '2';}               /* a2a2 genotype */
                     if(homo1[g] == '3'){homo1[g] = '1';} if(homo2[g] == '3'){homo2[g] = '2';}               /* a1a2 genotype */
                     if(homo1[g] == '4'){homo1[g] = '2';} if(homo2[g] == '4'){homo2[g] = '1';}               /* a2a1 genotype */
                 }
-                /* Loop across two gametes and see if unique if so put in haplotype library */
-                for(int g = 0; g < 2; g++)
+                animalpatstring[j] = homo1;
+                animalmatstring[j] = homo2;
+                haplotypes[(j*2)+0] = homo1;
+                haplotypes[(j*2)+1] = homo2;
+            }
+            /* Now Sort them and only keep unique ones */
+            sort(haplotypes.begin(),haplotypes.end());
+            haplotypes.erase(unique(haplotypes.begin(),haplotypes.end()),haplotypes.end());
+            #pragma omp parralel for
+            for(int j = 0; j < population.size(); j++)
+            {
+                int k = 0;
+                string foundpat = "nope"; string foundmat = "nope";
+                /* assign paternal and maternal string to a numeric value */
+                while(foundpat == "nope" || foundmat == "nope")
                 {
-                    string temp;
-                    if(g == 0){temp = homo1;}
-                    if(g == 1){temp = homo2;}
-                    int num = 0;                                            /* has to not match up with all unique haplotypes before added */
-                    if(haplotypes.size() == 0){haplotypes.push_back(temp);} /* Haplotype library will be empty for first individual */
-                    if(haplotypes.size() > 0)
+                    if(animalpatstring[j] == haplotypes[k])
                     {
-                        for(int h = 0; h < haplotypes.size(); h++)
-                        {
-                            if(temp.compare(haplotypes[h]) != 0){num++;}
-                            if(temp.compare(haplotypes[h]) == 0 && g == 0)  /* paste haplotype ID to paternal haplotype string */
-                            {
-                                if(i <= haplib.size() - 2){std::ostringstream s; s << AnimalPatHap[j] << h << "_" ; AnimalPatHap[j]=s.str();}
-                                if(i == haplib.size() - 1){std::ostringstream s; s << AnimalPatHap[j] << h ; AnimalPatHap[j]=s.str();}
-                            }
-                            if(temp.compare(haplotypes[h]) == 0 && g == 1)  /* paste haplotype ID to maternal haplotype string */
-                            {
-                                if(i <= haplib.size() - 2){std::ostringstream s; s<<AnimalMatHap[j]<<h<<"_"; AnimalMatHap[j]=s.str();}
-                                if(i == haplib.size() - 1){std::ostringstream s; s<<AnimalMatHap[j]<<h; AnimalMatHap[j]=s.str();}
-                            }
-                        }
+                        if(i <= haplib.size() - 2){std::ostringstream s; s << AnimalPatHap[j] << k << "_" ; AnimalPatHap[j]=s.str();}
+                        if(i == haplib.size() - 1){std::ostringstream s; s << AnimalPatHap[j] << k; AnimalPatHap[j]=s.str();}
+                        foundpat = "yes";
                     }
-                    if(num == haplotypes.size())
+                    if(animalmatstring[j] == haplotypes[k])
                     {
-                        haplotypes.push_back(temp);                         /* If number not match = size of hapLibary then add */
-                        if(g == 0)                                          /* paste haplotype ID to paternal haplotype string */
-                        {
-                            if(i <= haplib.size() - 2){std::ostringstream s; s<<AnimalPatHap[j]<<(haplotypes.size()-1)<<"_"; AnimalPatHap[j]=s.str();}
-                            if(i == haplib.size() - 1){std::ostringstream s; s<<AnimalPatHap[j]<<(haplotypes.size()-1); AnimalPatHap[j]=s.str();}
-                        }
-                        if(g == 1)                                          /* paste haplotype ID to maternal haplotype string */
-                        {
-                            if(i <= haplib.size() - 2){std::ostringstream s; s<<AnimalMatHap[j]<<(haplotypes.size()-1)<<"_"; AnimalMatHap[j]=s.str();}
-                            if(i == haplib.size() - 1){std::ostringstream s; s<<AnimalMatHap[j]<<(haplotypes.size()-1); AnimalMatHap[j]=s.str();}
-                        }
+                        if(i <= haplib.size() - 2){std::ostringstream s; s << AnimalMatHap[j] << k <<"_"; AnimalMatHap[j]=s.str();}
+                        if(i == haplib.size() - 1){std::ostringstream s; s << AnimalMatHap[j] << k; AnimalMatHap[j]=s.str();}
+                        foundmat = "yes";
                     }
-                }   /* Close loop that loops through twice, once for each gamete */
-                /* Finished looping across both haplotypes. Either is new or has already been their so can create portion of each haplotype matrix */
+                    k++;
+                }
+            }
+            #pragma omp parralel for
+            for(int j = 0; j < population.size(); j++)
+            {
+                string homo1 =  (population[j].getMarker()).substr(haplib[i].getStart(),haplotypesize);     /* Paternal haplotypes */
+                string homo2 = homo1;                                                                       /* Maternal haplotypes */
+                for(int g = 0; g < homo1.size(); g++)
+                {
+                    if(homo1[g] == '0'){homo1[g] = '1';} if(homo2[g] == '0'){homo2[g] = '1';}               /* a1a1 genotype */
+                    if(homo1[g] == '2'){homo1[g] = '2';} if(homo2[g] == '2'){homo2[g] = '2';}               /* a2a2 genotype */
+                    if(homo1[g] == '3'){homo1[g] = '1';} if(homo2[g] == '3'){homo2[g] = '2';}               /* a1a2 genotype */
+                    if(homo1[g] == '4'){homo1[g] = '2';} if(homo2[g] == '4'){homo2[g] = '1';}               /* a2a1 genotype */
+                }
                 /****************************************************/
                 /* Haplotype 1 Matrix (Based on Hickey et al. 2012) */
                 /****************************************************/
@@ -2548,10 +2597,10 @@ int main()
         //////////////////////////////////////////////////////////////////////////
         logfile << "Distribution of Mating Pairs \n";
         /* Plot distribution of mating pairs as an animal gets older */
-        const int n=1000;                          /* number of samples to draw */
+        const int n=10000;                          /* number of samples to draw */
         const int nstars=100;                      /* maximum number of stars to distribute for plot */
         const int nintervals=20;                   /* number of intervals for plot */
-        vector < double > number(1000,0.0);        /* stores samples */
+        vector < double > number(10000,0.0);        /* stores samples */
         int p[nintervals] = {};                    /* stores number in each interval */
         sftrabbit::beta_distribution<> beta(BetaDist_alpha, BetaDist_beta);     /* Beta Distribution */
         for (int i = 0; i < n; ++i){number[i] = beta(gen); ++p[int(nintervals*number[i])];}                  /* Get sample and put count in interval */
@@ -2561,7 +2610,7 @@ int main()
         {
             logfile << float(i)/nintervals << "-" << float(i+1)/nintervals << ": " << "\t" << std::string(p[i]*nstars/n,'*') << std::endl;
         }
-        sort_heap(number.begin(),number.end());
+        sort(number.begin(),number.end());
         logfile << "\nAllele Frequencies in Founder \n";
         /* Allele frequencies should be from a population that has been unselected; get allele frequency counts in from unselected base population */
         vector < string > tempgenofreqcalc;
@@ -2675,14 +2724,14 @@ int main()
                 logfile << "       - Size of Relationship Matrix: " << TotalAnimalNumber << " X " << TotalAnimalNumber << "." << endl;
                 MatrixXd Relationship(TotalAnimalNumber,TotalAnimalNumber);
                 MatrixXd Relationshipinv(TotalAnimalNumber,TotalAnimalNumber);
-                if(EBV_Calc == "h1" || EBV_Calc == "h2" || EBV_Calc == "h3" || EBV_Calc == "genomic")
+                if(EBV_Calc == "h1" || EBV_Calc == "h2" || EBV_Calc == "ROH" || EBV_Calc == "genomic")
                 {
                     /* G is set up different but inverse derivation is the same for Gen1 or when updating */
                     if(Gen == 1)
                     {
-                        if(EBV_Calc == "h1" || EBV_Calc == "h2" || EBV_Calc == "h3")
+                        if(EBV_Calc == "h1" || EBV_Calc == "h2" || EBV_Calc == "ROH")
                         {
-                            logfile << "           - Begin Constructing Genomic Relationship Matrix." << endl;
+                            logfile << "           - Begin Constructing " << EBV_Calc << " Relationship Matrix." << endl;
                             /* Initialize Relationship Matrix as 0.0 */
                             for(int ind1 = 0; ind1 < TotalAnimalNumber; ind1++)
                             {
@@ -2785,7 +2834,7 @@ int main()
                                                 H(hap2,hap1) = H(hap1,hap2);
                                             }
                                         }
-                                        if(EBV_Calc == "h3")
+                                        if(EBV_Calc == "ROH")
                                         {
                                             if(hap1 == hap2){H(hap1,hap2) = 1;}
                                             if(hap1 != hap2)
@@ -2816,6 +2865,7 @@ int main()
                             VectorXd den(1);                                                 /* Scale Relationship Matrix */
                             den(0) = haplib.size();
                             Relationship = Relationship / den(0);
+                            for(int i = 0; i < population.size(); i++){Relationship(i,i) += 1e-5;}
                             end = time(0);
                             logfile << "           - Finished constructing Genomic Relationship Matrix. " << endl;
                             logfile << "               - Took: " << difftime(end,start) << " seconds." << endl;
@@ -2825,7 +2875,6 @@ int main()
                         {
                             logfile << "           - Begin Constructing Genomic Relationship Matrix." << endl;
                             start = time(0);
-                            
                             vector < string > creategenorel;
                             for(int i = 0; i < population.size(); i++)
                             {
@@ -2927,9 +2976,9 @@ int main()
                     }
                     if(Gen > 1)
                     {
-                        if(EBV_Calc == "h1" || EBV_Calc == "h2" || EBV_Calc == "h3")
+                        if(EBV_Calc == "h1" || EBV_Calc == "h2" || EBV_Calc == "ROH")
                         {
-                            logfile << "           - Begin Constructing Genomic Relationship Matrix." << endl;
+                            logfile << "           - Begin Constructing " << EBV_Calc << " Relationship Matrix." << endl;
                             /* Initialize Relationship Matrix as 0.0 */
                             for(int ind1 = 0; ind1 < TotalAnimalNumber; ind1++)
                             {
@@ -2949,7 +2998,7 @@ int main()
                             while (getline(infile2,line))
                             {
                                 size_t pos = line.find(" ", 0); animal[linenumber] = (std::stoi(line.substr(0,pos))); line.erase(0, pos + 1);
-                                pos = line.find(" ",0); Phenotype.push_back(std::stod(line.substr(0,pos))); line.erase(0,pos + 1);
+                                pos = line.find(" ",0); Phenotype[linenumber] = (std::stod(line.substr(0,pos))); line.erase(0,pos + 1);
                                 pos = line.find(" ",0); line.erase(0,pos + 1); /* Do not need marker genotypes so skip */
                                 pos = line.find(" ",0); string PaternalHap = line.substr(0,pos); line.erase(0,pos + 1);
                                 string MaternalHap = line;
@@ -3042,7 +3091,7 @@ int main()
                                                 H(hap2,hap1) = H(hap1,hap2);
                                             }
                                         }
-                                        if(EBV_Calc == "h3")
+                                        if(EBV_Calc == "ROH")
                                         {
                                             if(hap1 == hap2){H(hap1,hap2) = 1;}
                                             if(hap1 != hap2)
@@ -3076,10 +3125,9 @@ int main()
                                             Relationship(ind2,ind1) = Relationship(ind1,ind2);
                                             if(i == haplib.size() - 1)
                                             {
-                                                VectorXd den(1);                                                 /* Scale Relationship Matrix */
-                                                den(0) = haplib.size();
-                                                Relationship(ind1,ind2) = Relationship(ind1,ind2) / den(0);
-                                                if(ind1 != ind2){Relationship(ind2,ind1) = Relationship(ind2,ind1) / den(0);}
+                                                Relationship(ind1,ind2) = Relationship(ind1,ind2) / double(haplib.size());
+                                                if(ind1 == ind2){Relationship(ind1,ind2) += 1e-5;}
+                                                if(ind1 != ind2){Relationship(ind2,ind1) = Relationship(ind2,ind1) / double(haplib.size());}
                                             }
                                         }
                                     } /* Finish loop across ind2 */
@@ -3336,22 +3384,19 @@ int main()
                         logfile << "               - Took: " << difftime(end,start) << " seconds." << endl;
                     }
                     /* Still need to calculate pedigree inbreeding so do it now */
-                    double *f_qs_u = new double[TotalAnimalNumber];
-                    pedigree_inbreeding(Pheno_Pedigree_File,f_qs_u);                /* Function that calculates inbreeding */
+                    double *f_ped = new double[TotalAnimalNumber];
+                    pedigree_inbreeding(Pheno_Pedigree_File,f_ped);                /* Function that calculates inbreeding */
                     /* All animals of age 1 haven't had inbreeding updated so need to update real inbreeding value */
                     for(int i = 0; i < population.size(); i++)                                      /* Loop across individuals in population */
                     {
                         int j = 0;                                                                  /* Counter for population spot */
                         while(1)
                         {
-                            if(population[i].getID() == animal[j])
-                            {
-                                double temp = f_qs_u[j] - 1; population[i].UpdateInb(temp); break;
-                            }
+                            if(population[i].getID() == animal[j]){double temp = f_ped[j]; population[i].UpdateInb(temp); break;}
                             j++;                                                                    /* Loop across until animal has been found */
                         }
                     }
-                    delete[] f_qs_u;
+                    delete[] f_ped;
                 }
                 if(EBV_Calc == "pedigree")
                 {
@@ -3373,8 +3418,8 @@ int main()
                         linenumber++;
                     }
                     double *f_ainv = new double[TotalAnimalNumber * TotalAnimalNumber];
-                    double *f_qs_u = new double[TotalAnimalNumber];
-                    pedigree_inverse(animal,sire,dam,f_ainv,f_qs_u);                    /* Function that calculates A-inverse */
+                    double *f_ped = new double[TotalAnimalNumber];
+                    pedigree_inverse(animal,sire,dam,f_ainv,f_ped);                    /* Function that calculates A-inverse */
                     /* Fill eigen matrix of A inverse*/
                     Relationshipinv = MatrixXd::Identity(TotalAnimalNumber,TotalAnimalNumber);
                     for(int i = 0; i < TotalAnimalNumber; i++){Relationshipinv(i,i) = 0;}
@@ -3391,11 +3436,11 @@ int main()
                         int j = 0;                                                                  /* Counter for population spot */
                         while(1)
                         {
-                            if(population[i].getID() == animal[j]){double temp = f_qs_u[j] - 1; population[i].UpdateInb(temp); break;}
+                            if(population[i].getID() == animal[j]){double temp = f_ped[j]; population[i].UpdateInb(temp); break;}
                             j++;                                                                    /* Loop across until animal has been found */
                         }
                     }
-                    delete[] f_qs_u;
+                    delete[] f_ped;
                 }
                 logfile << "       - Begin Solving for equations using " << Solver << " method." << endl;
                 ////////////////////////
@@ -3616,7 +3661,6 @@ int main()
                     logfile << "            - Kept " << femalesadd << " extra progeny." << endl;
                 }
             }
-    
             /* Start out with simulated number of females and males  */
             int malepos, femalepos;
             if(Gen == 1){malepos = SIRES; femalepos = DAMS;}    /* Grabs Position based on percentile in Males or Females */
@@ -4033,11 +4077,11 @@ int main()
             {
                 population[i].ZeroOutMatings();                                 /* Before figuring out number of mating zero out last generations */
                 int temp = population[i].getAge();
-                CountAgeClass[temp - 1] = CountAgeClass[temp -1] + 1;           /* Adds age to current list */
+                CountAgeClass[temp - 1] += 1;                                   /* Adds age to current list */
                 if(population[i].getSex() == 0)
                 {
                     int temp = population[i].getAge();
-                    CountSireAgeClass[temp - 1] = CountSireAgeClass[temp - 1] + 1;
+                    CountSireAgeClass[temp - 1] += 1;
                 }
             }
             int AgeClasses = 0;
@@ -4109,12 +4153,12 @@ int main()
                             {
                                 if(i == 0)
                                 {
-                                    MatingProp[i] = j / 1000.0;                                    /* Determine proportion that fall in interval */
+                                    MatingProp[i] = j / 10000.0;                                    /* Determine proportion that fall in interval */
                                     NumberGametes[i] = (MatingProp[i] * MatingPairs) + 0.5;
                                 }
                                 if(i > 0)
                                 {
-                                    MatingProp[i] = (j / 1000.0) - RunningTotalProp;                /* Determine proportion that fall in interval */
+                                    MatingProp[i] = (j / 10000.0) - RunningTotalProp;                /* Determine proportion that fall in interval */
                                     NumberGametes[i] = (MatingProp[i] * MatingPairs) + 0.5;
                                 }
                                 RunningTotalProp += MatingProp[i];
@@ -4213,19 +4257,13 @@ int main()
                     CountSireMateClass[temp - 1] = CountSireMateClass[temp - 1 ] + tempa;    /* add number based on age */
                 }
             }
-            for(int i = 0; i < 15; i++)
-            {
-                if(CountSireMateClass[i] > 0)
-                {
-                    CountSireMateClass[i] = CountSireMateClass[i] / CountSireAgeClass[i];
-                }
-            }
             logfile << "       - Sire Breeding Age Distribution: " << endl;
             for(int i = 0; i < 15; i++)
             {
                 if(CountSireMateClass[i] > 0)
                 {
-                    logfile << "           - Age " << i + 1 << " Number: " << CountSireAgeClass[i] << " Average Mates: " << CountSireMateClass[i] << endl;
+                    logfile << "           - Age " << i + 1 << " Number Sires: " << CountSireAgeClass[i] << " and Number of Matings: ";
+                    logfile << CountSireMateClass[i] << endl;
                 }
             }
             int CheckMatings = 0;
@@ -5021,189 +5059,155 @@ int main()
             logfile << "   Begin " << Mating << " mating: " << endl;
             time_t start_block3 = time(0);
             int LethalFounder = 0;
-            if(Mating == "random" || Mating == "random5" || Mating == "random25" || Mating == "random125")
+            /* First check to see how many male (rows) and female (columns) derived gametes there are are */
+            int malegametecount = 0;                    /* Number of male derived gametes */
+            vector < int > malerow;                     /* where at in mate allocation value matrix */
+            vector < int > maleid;                      /* ID of parent for ID (has to be male) */
+            vector < int > maleA;                       /* Where at in Relationship Matrix */
+            vector < double > maleUni;                  /* Uniform deviate used for random mating */
+            vector < string > malegamete;               /* gamete for row */
+            int femalegametecount = 0;                  /* Number of female derived gametes */
+            vector < int > femalerow;                   /* where at in mate allocation value matrix */
+            vector < int > femaleid;                    /* ID of parent for ID (has to be male) */
+            vector < int > femaleA;                     /* Where at in Relationship Matrix */
+            vector < double > femaleUni;                /* Uniform deviate used for random mating */
+            vector < string > femalegamete;             /* gamete for row */
+            vector < int > sire_mate_column;            /* column that corresponds to female that will be mated */
+            for(int i = 0; i < CounterAnimGamIndex; i++)
             {
-                /* Make variable to utilize in construction of mate allocation matrix */
-                int males = 0; int females = 0; int row = 0; int col = 0;
-                /* Used to keep track of where gametes are in mate allocation matrix for males and females */
-                vector < int > rowid;                                           /* Which row in mate allocation matrix */
-                vector < int > A_location_row;                                  /* Where at in Relationship Matrix */
-                vector < int > rownames;                                        /* For a given row what is sire ID */
-                vector < double > rowUni;                                       /* For a given row what is Uniform Value */
-                vector < string > rowGamete;                                    /* For a given row what is gamete */
-                vector < int > colid;                                           /* Which col in mate allocation matrix */
-                vector < int > A_location_col;
-                vector < int > colnames;                                        /* For a given col what is dam ID */
-                vector < double > colUni;                                       /* For a given col what is Uniform Value */
-                vector < string > colGamete;                                    /* For a given col what is gamete */
-                for(int i = 0; i < CounterAnimGamIndex; i++)
+                if(AnimGam_Sex[i] == 0)                                     /* if Male */
                 {
-                    if(AnimGam_Sex[i] == 0)                                     /* if Male */
-                    {
-                        rowid.push_back(row); rownames.push_back(AnimGam_ID[i]); rowUni.push_back(AnimGam_Dev[i]);
-                        rowGamete.push_back(AnimGam_Gam[i]); row++; males++;
-                    }
-                    if(AnimGam_Sex[i] == 1)                                     /* if Female */
-                    {
-                        colid.push_back(col); colnames.push_back(AnimGam_ID[i]); colUni.push_back(AnimGam_Dev[i]);
-                        colGamete.push_back(AnimGam_Gam[i]); col++; females++;
-                    }
+                    malerow.push_back(malegametecount); maleid.push_back(AnimGam_ID[i]); maleA.push_back(-5);
+                    maleUni.push_back(AnimGam_Dev[i]); malegamete.push_back(AnimGam_Gam[i]); malegametecount++;
                 }
-                /* construct relationships based on S, D, MGS, MGD, PGS, PGD and then user sets threshold */
-                vector < int > animal_rightid; vector < int > sire_rightid; vector < int > dam_rightid;
-                /* Fill real id and sex */
+                if(AnimGam_Sex[i] == 1)                                     /* if Female */
+                {
+                    femalerow.push_back(femalegametecount); femaleid.push_back(AnimGam_ID[i]); femaleA.push_back(-5);
+                    femaleUni.push_back(AnimGam_Dev[i]); femalegamete.push_back(AnimGam_Gam[i]); femalegametecount++;
+                }
+            }
+            double* mate_value_matrix = new double[malegametecount * femalegametecount];            /* Filled by values which want to minimize or maximize */
+            for(int i = 0; i < (malegametecount * femalegametecount); i++){mate_value_matrix[i] = 0;}
+            /* Get ID of parents in order to create a relationship matrix of some kind */
+            vector < int > parentID;
+            for(int i = 0; i < population.size(); i++){parentID.push_back(population[i].getID());}  /* Loop through and grab parent IDs */
+            if(Mating == "minROH")
+            {
+                vector < int > idgenorel;                                       /* ID row column geno matrix */
+                /* Before you start to make h_matrix for each haplotype first create a 2-dimensional vector with haplotype id */
+                /* This way you don't have to repeat this step for each haplotype */
+                vector < vector < int > > pathaploIDs;
+                vector < vector < int > > mathaploIDs;
                 for(int i = 0; i < population.size(); i++)
                 {
-                    string temp = population[i].getPed3G();
-                    /* unstring 3 generation pedigree */
-                    int temps, tempd; /* place to save id prior to putting it into right spot */
-                    /* grab first two */
-                    animal_rightid.push_back(population[i].getID());
-                    size_t pos = temp.find("_",0); temps = atoi((temp.substr(0,pos)).c_str()); temp.erase(0,pos + 1); /* S */
-                    pos = temp.find("_",0); tempd = atoi((temp.substr(0,pos)).c_str()); temp.erase(0,pos + 1); /* D */
-                    sire_rightid.push_back(temps);
-                    dam_rightid.push_back(tempd);
-                    /* Grab Maternal side */
-                    if(temps != 0 && tempd == 0){cout << temp << endl; exit (EXIT_FAILURE);}
-                    if(temps == 0 && tempd != 0){cout << temp << endl; exit (EXIT_FAILURE);}
-                    if(temps != 0 && tempd != 0)
+                    /* Grab Animal ID and maternal and paternal for GRM function */
+                    idgenorel.push_back(population[i].getID());
+                    string PaternalHap = population[i].getPatHapl();                        /* Grab Paternal Haplotype for Individual i */
+                    string MaternalHap = population[i].getMatHapl();                        /* Grab Maternal Haplotype for Individual i */
+                    vector < int > temp_pat;
+                    string quit = "NO";
+                    while(quit != "YES")
                     {
-                        int temp_mgs, temp_mgd, temp_pgs, temp_pgd;
-                        pos = temp.find("_",0); temp_mgs = atoi((temp.substr(0,pos)).c_str()); temp.erase(0,pos + 1); /* MGS */
-                        pos = temp.find("_",0); temp_mgd = atoi((temp.substr(0,pos)).c_str()); temp.erase(0,pos + 1); /* MGD */
-                        pos = temp.find("_",0); temp_pgs = atoi((temp.substr(0,pos)).c_str()); temp.erase(0,pos + 1);
-                        temp_pgd = atoi(temp.c_str());
-                        /* Save Maternal Side */
-                        animal_rightid.push_back(temps); sire_rightid.push_back(temp_mgs); dam_rightid.push_back(temp_mgd);
-                        /* Save Paternal Side */
-                        animal_rightid.push_back(tempd); sire_rightid.push_back(temp_pgs); dam_rightid.push_back(temp_pgd);
-                        if(temp_mgs != 0){animal_rightid.push_back(temp_mgs); sire_rightid.push_back(0); dam_rightid.push_back(0);}
-                        if(temp_mgd != 0){animal_rightid.push_back(temp_mgd); sire_rightid.push_back(0); dam_rightid.push_back(0);}
-                        if(temp_pgs != 0){animal_rightid.push_back(temp_pgs); sire_rightid.push_back(0); dam_rightid.push_back(0);}
-                        if(temp_pgs != 0){animal_rightid.push_back(temp_pgd); sire_rightid.push_back(0); dam_rightid.push_back(0);}
+                        size_t pos = PaternalHap.find("_",0);                               /* search until last one yet */
+                        if(pos > 0){temp_pat.push_back(stoi(PaternalHap.substr(0,pos))); PaternalHap.erase(0, pos + 1);}    /* extend column by 1 */
+                        if(pos == std::string::npos){quit = "YES";}                         /* has reached last one so now kill while loop */
                     }
+                    pathaploIDs.push_back(temp_pat);                               /* push back row */
+                    vector < int > temp_mat;
+                    quit = "NO";
+                    while(quit != "YES")
+                    {
+                        size_t pos = MaternalHap.find("_",0);                               /* search until last one yet */
+                        if(pos > 0){temp_mat.push_back(stoi(MaternalHap.substr(0,pos))); MaternalHap.erase(0, pos + 1);}    /* extend column by 1 */
+                        if(pos == std::string::npos){quit = "YES";}                         /* has reached last one so now kill while loop */
+                    }
+                    mathaploIDs.push_back(temp_mat);                               /* push back row */
                 }
-                /* order by id and remove duplicates */
-                int tempa, tempb, tempc;
-                for(int i = 0; i < animal_rightid.size()-1; i++)
-                {
-                    for(int j=i+1; j < animal_rightid.size(); j++)
-                    {
-                        if(animal_rightid[i] > animal_rightid[j])
-                        {
-                            tempa = animal_rightid[i]; tempb = sire_rightid[i]; tempc = dam_rightid[i]; /* put i values in temp variables */
-                            animal_rightid[i] = animal_rightid[j]; sire_rightid[i] = sire_rightid[j]; dam_rightid[i] = dam_rightid[j]; /* swap lines */
-                            animal_rightid[j] = tempa; sire_rightid[j] = tempb; dam_rightid[j] = tempc; /* put temp values in 1 backward */
-                        }
-                    }
-                }
-                /* remove duplicates */
-                ROWS = animal_rightid.size();                                                   /* Current Size of summary statistics */
-                i = 2;                                                                          /* Start at one because always look back at previous one */
-                while(i < ROWS)
-                {
-                    while(1)
-                    {
-                        if(animal_rightid[i] == animal_rightid[i-1])
-                        {
-                            animal_rightid.erase(animal_rightid.begin()+(i)); sire_rightid.erase(sire_rightid.begin()+(i));
-                            dam_rightid.erase(dam_rightid.begin()+(i)); ROWS = ROWS-1; break;
-                        }
-                        if(animal_rightid[i] != animal_rightid[i-1]){i++; break;}
-                    }
-                }
-                /* Get renumbered ID */
-                vector < int > animal_renumid(animal_rightid.size(),0);
-                vector < int > sire_renumid(animal_rightid.size(),0);
-                vector < int > dam_renumid(animal_rightid.size(),0);
-                for(int i = 0; i < animal_renumid.size(); i++)
-                {
-                    animal_renumid[i] = i + 1;
-                    int temp = animal_rightid[i];
-                    for(int j = 0; j < animal_rightid.size(); j++)
-                    {
-                        /* change it if sire or dam */
-                        if(temp == sire_rightid[j]){sire_renumid[j] = i + 1;}
-                        if(temp == dam_rightid[j]){dam_renumid[j] = i + 1;}
-                    }
-                }
-                /* renumbered ID created */
-                /* Construct Full A Matrix then grab only animals that have phenotypes then invert with cholesky decomposition */
-                MatrixXd parent_A(animal_renumid.size(),animal_renumid.size());
-                for(int i = 0; i < animal_renumid.size(); i++)
-                {
-                    for(int j = 0; j < animal_renumid.size(); j++){parent_A(i,j) = 0.0;}
-                }
-                for(int i = 0; i < animal_renumid.size(); i++)
-                {
-                    if (sire_renumid[i] != 0 && dam_renumid[i] != 0)
-                    {
-                        for (int j = 0; j < i; j++)
-                        {
-                            parent_A(j,i) = 0.5 * (parent_A(j,(sire_renumid[i]-1)) + parent_A(j,(dam_renumid[i]-1)));
-                            parent_A(i,j) = 0.5 * (parent_A(j,(sire_renumid[i]-1)) + parent_A(j,(dam_renumid[i]-1)));
-                        }
-                        parent_A((animal_renumid[i]-1),(animal_renumid[i]-1)) = 1 + 0.5 * parent_A((sire_renumid[i]-1),(dam_renumid[i]-1));
-                    }
-                    if (sire_renumid[i] != 0 && dam_renumid[i] == 0)
-                    {
-                        for (int j = 0; j < i; j++)
-                        {
-                            parent_A(j,i) = 0.5 * (parent_A(j,(sire_renumid[i]-1))); parent_A(i,j) = 0.5 * (parent_A(j,(sire_renumid[i]-1)));
-                        }
-                        parent_A((animal_renumid[i]-1),(animal_renumid[i]-1)) = 1;
-                    }
-                    if (sire_renumid[i] == 0 && dam_renumid[i] != 0)
-                    {
-                        for (int j = 0; j < i; j++)
-                        {
-                            parent_A(j,i) = 0.5 * (parent_A(j,(dam_renumid[i]-1))); parent_A(i,j) = 0.5 * (parent_A(j,(dam_renumid[i]-1)));
-                        }
-                        parent_A((animal_renumid[i]-1),(animal_renumid[i]-1)) = 1;
-                    }
-                    if (sire_renumid[i] == 0 && dam_renumid[i] == 0){parent_A((animal_renumid[i]-1),(animal_renumid[i]-1)) = 1;}
-                }
-                /* Figure out where at in parent A matrix */
-                for(int i = 0; i < rownames.size(); i++)
+                /* the order of the sub relationship will be that same as the order of the idgenorel vector; so figure where at in sub relationship now */
+                for(int i = 0; i < maleid.size(); i++)
                 {
                     int j = 0;
-                    while(j < animal_rightid.size())
+                    while(j < idgenorel.size())
                     {
-                        if(rownames[i] == animal_rightid[j]){A_location_row.push_back(j); break;}
-                        if(rownames[i] != animal_rightid[j]){j++;}
-                        if(j == (animal_rightid.size())){cout << "Couldn't Find Animal in Mating Design " << j << endl; exit (EXIT_FAILURE);}
+                        if(maleid[i] == idgenorel[j]){maleA[i] = j; break;}
+                        if(maleid[i] != idgenorel[j]){j++;}
+                        if(j == (idgenorel.size())){cout << "Couldn't Find Animal in Mating Design " << j << endl; exit (EXIT_FAILURE);}
                     }
                 }
-                for(int i = 0; i < colnames.size(); i++)
+                for(int i = 0; i < femaleid.size(); i++)
                 {
                     int j = 0;
-                    while(j < animal_rightid.size())
+                    while(j < idgenorel.size())
                     {
-                        if(colnames[i] == animal_rightid[j]){A_location_col.push_back(j); break;}
-                        if(colnames[i] != animal_rightid[j]){j++;}
-                        if(j == (animal_rightid.size())){cout << "Couldn't Find Animal in Mating Design " << j << endl; exit (EXIT_FAILURE);}
+                        if(femaleid[i] == idgenorel[j]){femaleA[i] = j; break;}
+                        if(femaleid[i] != idgenorel[j]){j++;}
+                        if(j == (idgenorel.size())){cout << "Couldn't Find Animal in Mating Design " << j << endl; exit (EXIT_FAILURE);}
+                    }
+                }
+                double *_grm_mkl = new double[population.size()*population.size()];     /* Allocate Memory for GRM */
+                for(int hap = 0; hap < haplib.size(); hap++)
+                {
+                    vector < string > haplotypes;
+                    /* Unstring haplotypes, seperated by "_" */
+                    string temphapstring = haplib[hap].getHaplo();
+                    string quit = "NO";
+                    while(quit == "NO")
+                    {
+                        size_t pos = temphapstring.find("_",0);                         /* hasn't reached last one yet */
+                        if(pos > 0){haplotypes.push_back(temphapstring.substr(0,pos)); temphapstring.erase(0, pos + 1);}
+                        if(pos == std::string::npos){quit = "YES";}
+                    }
+                    /* ROH haplotype similarity matrix is just a diagonal matrix */
+                    double* H_matrix = new double[haplotypes.size()*haplotypes.size()];
+                    int i, j;
+                    #pragma omp parallel for private(j)
+                    for(i = 0; i < haplotypes.size(); i++)
+                    {
+                        for(j = 0; j < haplotypes.size(); j++)
+                        {
+                            if(i == j){H_matrix[(i*haplotypes.size())+j] = 1.0;}
+                            if(i != j){H_matrix[(i*haplotypes.size())+j] = 0.0;}
+                        }
+                    }
+                    /* fill relationship matrix */
+                    #pragma omp parallel for private(j)
+                    for(i = 0; i < population.size(); i++)
+                    {
+                        for(j = i; j < population.size(); j++)
+                        {
+                            _grm_mkl[(i*population.size())+j] += (H_matrix[((pathaploIDs[i][hap])*haplotypes.size())+(pathaploIDs[j][hap])] +
+                                                                  H_matrix[((pathaploIDs[i][hap])*haplotypes.size())+(mathaploIDs[j][hap])] +
+                                                                  H_matrix[((mathaploIDs[i][hap])*haplotypes.size())+(pathaploIDs[j][hap])] +
+                                                                  H_matrix[((mathaploIDs[i][hap])*haplotypes.size())+(mathaploIDs[j][hap])]) / 2;
+                            _grm_mkl[(j*population.size())+i] =  _grm_mkl[(i*population.size())+j];
+                        }
+                    }
+                    delete [] H_matrix;
+                }
+                for(int i = 0; i < population.size(); i++)
+                {
+                    for(int j = 0; j < population.size(); j++)
+                    {
+                        _grm_mkl[(i*population.size())+j] = _grm_mkl[(i*population.size())+j] / double(haplib.size());
                     }
                 }
                 /* Once relationships are tabulated between parents and fill mate allocation matrix (sire by dams)*/
-                MatrixXd mate_allocation(row,col);
-                for(int i = 0; i < row; i++)
+                for(int i = 0; i < malegametecount; i++)
                 {
-                    for(int j = 0; j < col; j++){mate_allocation(i,j) = 0.0;}
-                }
-                for(int i = 0; i < row; i++)
-                {
-                    for(int j = 0; j < col; j++)
+                    for(int j = 0; j < femalegametecount; j++)
                     {
-                        mate_allocation(i,j) = parent_A(A_location_row[i],A_location_col[j]);
+                        mate_value_matrix[(i*malegametecount)+j] = _grm_mkl[(maleA[i]*population.size())+femaleA[j]];
                     }
                 }
+                delete[] _grm_mkl;
                 /* randomly mate male and female gametes; copy male uniform gamete with row then randomly sort */
-                vector < double > copy_male_uni; vector < int > sire_mate_column;
-                for(int i = 0; i < rowUni.size(); i++){copy_male_uni.push_back(rowUni[i]); sire_mate_column.push_back(i);}
-                double temp_uniform;
-                int temp_id;
-                for(int i = 0; i < rowUni.size()-1; i++)
-                    for(int j=i+1; j < rowUni.size(); j++)
+                vector < double > copy_male_uni;
+                for(int i = 0; i < maleUni.size(); i++){copy_male_uni.push_back(maleUni[i]); sire_mate_column.push_back(i);}
+                double temp_uniform; int temp_id;
+                for(int i = 0; i < maleUni.size()-1; i++)
+                {
+                    for(int j=i+1; j < maleUni.size(); j++)
+                    {
                         if(copy_male_uni[i] > copy_male_uni[j])
                         {
                             /* put i values in temp variables */
@@ -5213,82 +5217,359 @@ int main()
                             /* put temp values in 1 backward */
                             sire_mate_column[j] = temp_id; copy_male_uni[j] = temp_uniform;
                         }
-                int greater125 = 0; int greater25 = 0; int greater5 = 0;
-                for(int i = 0; i < rowUni.size(); i++)
-                {
-                    double temp = mate_allocation(i,sire_mate_column[i]);
-                    if(temp > 0.12){greater125++;}
-                    if(temp > 0.24){greater25++;}
-                    if(temp > 0.49){greater5++;}
+                    }
                 }
-                double initial_inbreeding = 0.0;
-                for(int i = 0; i < rowUni.size(); i++){initial_inbreeding += mate_allocation(i,sire_mate_column[i]);}
-                logfile << "       - Number of males and females: " << males  << " " << females << endl;
-                logfile << "       - Intitial Inbreeding Level : " << initial_inbreeding << endl;
-                logfile << "       - Number of matings > 0.125 relationship: " << greater125 << "." << endl;
-                logfile << "       - Number of matings > 0.25 relationship: " << greater25 << "." << endl;
-                logfile << "       - Number of matings > 0.50 relationship: " << greater5 << "." << endl;
+                double mean = 0.0; double min = 1.0; double max = 0.0; double initial_inbreeding;
+                vector < double > coancestoryvalues(maleUni.size(), 0.0);
+                for(int i = 0; i < maleUni.size(); i++)
+                {
+                    double temp = mate_value_matrix[(i*malegametecount)+sire_mate_column[i]];
+                    coancestoryvalues[i] = temp;
+                    mean += temp;
+                    if(temp < min){min = temp;}
+                    if(temp > max){max = temp;}
+                }
+                logfile << "       - Number of male and female gametes: " << malegametecount << " " << femalegametecount << endl;
+                logfile << "       - Inbreeding Level prior to mating strategy: " << endl;
+                logfile << "            - Initial Mean (Min - Max) Coancestory: " << mean / double(maleUni.size()) << " (" << min << " - " << max << ")." << endl;
+                logfile << "       - Minimize coancestries based on Pedigree information." << endl;
+                double temperature = 10000.0;
+                double epsilon = 0.001;
+                double alpha = 0.9999;
+                /* Simulated Annealing Algorithm */
+                while(temperature > epsilon)
+                {
+                    vector < int > next_sire_mate_column;
+                    for(int i = 0; i < sire_mate_column.size(); i++)
+                    {
+                        next_sire_mate_column.push_back(sire_mate_column[i]);
+                    }
+                    /* Randomly swap two elements */
+                    int change[2];
+                    for(int i = 0; i < 2; i++)
+                    {
+                        std::uniform_real_distribution<double> distribution15(0,sire_mate_column.size());
+                        change[i] = distribution15(gen);
+                        if(i == 1)
+                        {
+                            if(change[0] == change[1]){i = i-1;}
+                        }
+                    }
+                    // change elements
+                    int oldfirstone = next_sire_mate_column[change[0]];
+                    next_sire_mate_column[change[0]] = next_sire_mate_column[change[1]];
+                    next_sire_mate_column[change[1]] = oldfirstone;
+                    // compute previous one
+                    double cost_previous = 0.0;
+                    for(int i = 0; i < sire_mate_column.size(); i++){cost_previous += mate_value_matrix[(i*malegametecount)+sire_mate_column[i]];}
+                    // compute new one
+                    double cost_current = 0.0;
+                    for(int i = 0; i < sire_mate_column.size(); i++){cost_current += mate_value_matrix[(i*malegametecount)+next_sire_mate_column[i]];}
+                    // Used to determine if you want to change it it is worse
+                    double sa = exp((-cost_previous-cost_current)/temperature);
+                    // check the boolean condition
+                    if(cost_current < cost_previous)
+                    {
+                        for(int i = 0; i < sire_mate_column.size(); i++){sire_mate_column[i] = next_sire_mate_column[i];}
+                    }
+                    else
+                    {
+                        std::uniform_real_distribution<double> distribution16(0,1);
+                        double sample = distribution16(gen);
+                        if(sample < sa)
+                        {
+                            for(int i = 0; i < sire_mate_column.size(); i++)
+                            {
+                                sire_mate_column[i] = next_sire_mate_column[i];
+                            }
+                        }
+                    }
+                    temperature = temperature * alpha;
+                }
+                mean = 0.0; min = 1.0; max = 0.0;
+                for(int i = 0; i < maleUni.size(); i++)
+                {
+                    double temp = mate_value_matrix[(i*malegametecount)+sire_mate_column[i]];
+                    coancestoryvalues[i] = temp;
+                    mean += temp;
+                    if(temp < min){min = temp;}
+                    if(temp > max){max = temp;}
+                }
+                logfile << "       - Inbreeding Level after mating strategy: " << endl;
+                logfile << "            - Initial Mean (Min - Max) Coancestory: " << mean / double(maleUni.size()) << " (" << min << " - " << max << ")." << endl;
+                delete [] mate_value_matrix;
+            }
+            if(Mating == "minGenomic")
+            {
+                
+                vector < int > idgenorel;                                       /* ID row column geno matrix */
+                vector < string > creategenorel;                                /* Geno string for row column geno matrix */
+                for(int i = 0; i < population.size(); i++)
+                {
+                    /* Grab Animal ID and genotype for GRM function */
+                    idgenorel.push_back(population[i].getID()); creategenorel.push_back(population[i].getMarker());
+                }
+                /* the order of the sub relationship will be that same as the order of the idgenorel vector; so figure where at in sub relationship now */
+                for(int i = 0; i < maleid.size(); i++)
+                {
+                    int j = 0;
+                    while(j < idgenorel.size())
+                    {
+                        if(maleid[i] == idgenorel[j]){maleA[i] = j; break;}
+                        if(maleid[i] != idgenorel[j]){j++;}
+                        if(j == (idgenorel.size())){cout << "Couldn't Find Animal in Mating Design " << j << endl; exit (EXIT_FAILURE);}
+                    }
+                }
+                for(int i = 0; i < femaleid.size(); i++)
+                {
+                    int j = 0;
+                    while(j < idgenorel.size())
+                    {
+                        if(femaleid[i] == idgenorel[j]){femaleA[i] = j; break;}
+                        if(femaleid[i] != idgenorel[j]){j++;}
+                        if(j == (idgenorel.size())){cout << "Couldn't Find Animal in Mating Design " << j << endl; exit (EXIT_FAILURE);}
+                    }
+                }
+                /* Generate G matrix for parental animals */
+                double *_grm_mkl = new double[population.size()*population.size()];     /* Allocate Memory for GRM */
+                grm_noprevgrm(M,creategenorel,_grm_mkl,scale);                          /* Function to create GRM, with no previous grm */
+                creategenorel.clear();
+                
+                /* Once relationships are tabulated between parents and fill mate allocation matrix (sire by dams)*/
+                for(int i = 0; i < malegametecount; i++)
+                {
+                    for(int j = 0; j < femalegametecount; j++)
+                    {
+                        mate_value_matrix[(i*malegametecount)+j] = _grm_mkl[(maleA[i]*population.size())+femaleA[j]];
+                    }
+                }
+                delete[] _grm_mkl;
+                /* randomly mate male and female gametes; copy male uniform gamete with row then randomly sort */
+                vector < double > copy_male_uni;
+                for(int i = 0; i < maleUni.size(); i++){copy_male_uni.push_back(maleUni[i]); sire_mate_column.push_back(i);}
+                double temp_uniform; int temp_id;
+                for(int i = 0; i < maleUni.size()-1; i++)
+                {
+                    for(int j=i+1; j < maleUni.size(); j++)
+                    {
+                        if(copy_male_uni[i] > copy_male_uni[j])
+                        {
+                            /* put i values in temp variables */
+                            temp_id = sire_mate_column[i]; temp_uniform = copy_male_uni[i];
+                            /* swap lines */
+                            sire_mate_column[i] = sire_mate_column[j]; copy_male_uni[i] = copy_male_uni[j];
+                            /* put temp values in 1 backward */
+                            sire_mate_column[j] = temp_id; copy_male_uni[j] = temp_uniform;
+                        }
+                    }
+                }
+                double mean = 0.0; double min = 1.0; double max = 0.0; double initial_inbreeding;
+                vector < double > coancestoryvalues(maleUni.size(), 0.0);
+                for(int i = 0; i < maleUni.size(); i++)
+                {
+                    double temp = mate_value_matrix[(i*malegametecount)+sire_mate_column[i]];
+                    coancestoryvalues[i] = temp;
+                    mean += temp;
+                    if(temp < min){min = temp;}
+                    if(temp > max){max = temp;}
+                }
+                logfile << "       - Number of male and female gametes: " << malegametecount << " " << femalegametecount << endl;
+                logfile << "       - Inbreeding Level prior to mating strategy: " << endl;
+                logfile << "            - Initial Mean (Min - Max) Coancestory: " << mean / double(maleUni.size()) << " (" << min << " - " << max << ")." << endl;
+                logfile << "       - Minimize coancestries based on Pedigree information." << endl;
+                double temperature = 10000.0;
+                double epsilon = 0.001;
+                double alpha = 0.9999;
+                /* Simulated Annealing Algorithm */
+                while(temperature > epsilon)
+                {
+                    vector < int > next_sire_mate_column;
+                    for(int i = 0; i < sire_mate_column.size(); i++)
+                    {
+                        next_sire_mate_column.push_back(sire_mate_column[i]);
+                    }
+                    /* Randomly swap two elements */
+                    int change[2];
+                    for(int i = 0; i < 2; i++)
+                    {
+                        std::uniform_real_distribution<double> distribution15(0,sire_mate_column.size());
+                        change[i] = distribution15(gen);
+                        if(i == 1)
+                        {
+                            if(change[0] == change[1]){i = i-1;}
+                        }
+                    }
+                    // change elements
+                    int oldfirstone = next_sire_mate_column[change[0]];
+                    next_sire_mate_column[change[0]] = next_sire_mate_column[change[1]];
+                    next_sire_mate_column[change[1]] = oldfirstone;
+                    // compute previous one
+                    double cost_previous = 0.0;
+                    for(int i = 0; i < sire_mate_column.size(); i++){cost_previous += mate_value_matrix[(i*malegametecount)+sire_mate_column[i]];}
+                    // compute new one
+                    double cost_current = 0.0;
+                    for(int i = 0; i < sire_mate_column.size(); i++){cost_current += mate_value_matrix[(i*malegametecount)+next_sire_mate_column[i]];}
+                    // Used to determine if you want to change it it is worse
+                    double sa = exp((-cost_previous-cost_current)/temperature);
+                    // check the boolean condition
+                    if(cost_current < cost_previous)
+                    {
+                        for(int i = 0; i < sire_mate_column.size(); i++){sire_mate_column[i] = next_sire_mate_column[i];}
+                    }
+                    else
+                    {
+                        std::uniform_real_distribution<double> distribution16(0,1);
+                        double sample = distribution16(gen);
+                        if(sample < sa)
+                        {
+                            for(int i = 0; i < sire_mate_column.size(); i++)
+                            {
+                                sire_mate_column[i] = next_sire_mate_column[i];
+                            }
+                        }
+                    }
+                    temperature = temperature * alpha;
+                }
+                mean = 0.0; min = 1.0; max = 0.0;
+                for(int i = 0; i < maleUni.size(); i++)
+                {
+                    double temp = mate_value_matrix[(i*malegametecount)+sire_mate_column[i]];
+                    coancestoryvalues[i] = temp;
+                    mean += temp;
+                    if(temp < min){min = temp;}
+                    if(temp > max){max = temp;}
+                }
+                logfile << "       - Inbreeding Level after mating strategy: " << endl;
+                logfile << "            - Initial Mean (Min - Max) Coancestory: " << mean / double(maleUni.size()) << " (" << min << " - " << max << ")." << endl;
+                delete [] mate_value_matrix;
+            }
+            if(Mating == "random" || Mating == "random5" || Mating == "random25" || Mating == "random125" || Mating == "minPedigree")
+            {
+                /* the order of the sub relationship will be that same as the order of the parentID vector; so figure where at in sub relationship now */
+                for(int i = 0; i < maleid.size(); i++)
+                {
+                    int j = 0;
+                    while(j < parentID.size())
+                    {
+                        if(maleid[i] == parentID[j]){maleA[i] = j; break;}
+                        if(maleid[i] != parentID[j]){j++;}
+                        if(j == (parentID.size())){cout << "Couldn't Find Animal in Mating Design " << j << endl; exit (EXIT_FAILURE);}
+                    }
+                }
+                for(int i = 0; i < femaleid.size(); i++)
+                {
+                    int j = 0;
+                    while(j < parentID.size())
+                    {
+                        if(femaleid[i] == parentID[j]){femaleA[i] = j; break;}
+                        if(femaleid[i] != parentID[j]){j++;}
+                        if(j == (parentID.size())){cout << "Couldn't Find Animal in Mating Design " << j << endl; exit (EXIT_FAILURE);}
+                    }
+                }
+                /* Create Relationship Matrix */
+                double* subsetrelationship = new double[parentID.size()*parentID.size()];
+                pedigree_relationship(Pheno_Pedigree_File,parentID, subsetrelationship);
+                /* Once relationships are tabulated between parents and fill mate allocation matrix (sire by dams)*/
+                for(int i = 0; i < malegametecount; i++)
+                {
+                    for(int j = 0; j < femalegametecount; j++)
+                    {
+                        mate_value_matrix[(i*malegametecount)+j] = subsetrelationship[(maleA[i]*parentID.size())+femaleA[j]];
+                    }
+                }
+                /* randomly mate male and female gametes; copy male uniform gamete with row then randomly sort */
+                vector < double > copy_male_uni;
+                for(int i = 0; i < maleUni.size(); i++){copy_male_uni.push_back(maleUni[i]); sire_mate_column.push_back(i);}
+                double temp_uniform; int temp_id;
+                for(int i = 0; i < maleUni.size()-1; i++)
+                {
+                    for(int j=i+1; j < maleUni.size(); j++)
+                    {
+                        if(copy_male_uni[i] > copy_male_uni[j])
+                        {
+                            /* put i values in temp variables */
+                            temp_id = sire_mate_column[i]; temp_uniform = copy_male_uni[i];
+                            /* swap lines */
+                            sire_mate_column[i] = sire_mate_column[j]; copy_male_uni[i] = copy_male_uni[j];
+                            /* put temp values in 1 backward */
+                            sire_mate_column[j] = temp_id; copy_male_uni[j] = temp_uniform;
+                        }
+                    }
+                }
+                int greater125 = 0; int greater25 = 0; int greater5 = 0; double initial_inbreeding;
+                double mean = 0.0; double min = 1.0; double max = 0.0;
+                vector < double > coancestoryvalues(maleUni.size(), 0.0);
+                for(int i = 0; i < maleUni.size(); i++)
+                {
+                    double temp = mate_value_matrix[(i*malegametecount)+sire_mate_column[i]];
+                    coancestoryvalues[i] = temp;
+                    mean += temp;
+                    if(temp < min){min = temp;}
+                    if(temp > max){max = temp;}
+                    if(temp >= 0.125){greater125++;}
+                    if(temp >= 0.25){greater25++;}
+                    if(temp >= 0.50){greater5++;}
+                }
+                logfile << "       - Number of male and female gametes: " << malegametecount << " " << femalegametecount << endl;
+                logfile << "       - Inbreeding Level prior to mating strategy: " << endl;
+                logfile << "            - Initial Mean (Min - Max) Coancestory: " << mean / double(maleUni.size()) << " (" << min << " - " << max << ")." << endl;
+                logfile << "            - Number of matings > 0.125 relationship: " << greater125 << "." << endl;
+                logfile << "            - Number of matings > 0.25 relationship: " << greater25 << "." << endl;
+                logfile << "            - Number of matings > 0.50 relationship: " << greater5 << "." << endl;
                 /* Depending on which matings are not allowed you set anything below the cutoff to 0 */
                 if(Mating == "random")
                 {
                     logfile << "       - All Matings Allowed." << endl;
-                    for(int i = 0; i < row; i++)
-                    {
-                        for(int j = 0; j < col; j++){mate_allocation(i,j) = 0.0;}       /* Set all to zero */
-                    }
+                    for(int i = 0; i < (malegametecount * femalegametecount); i++){mate_value_matrix[i] = 0;} /* Set all to zero */
                     initial_inbreeding = 0.0;
-                    for(int i = 0; i < rowUni.size(); i++){initial_inbreeding += mate_allocation(i,sire_mate_column[i]);}
+                    for(int i = 0; i < maleUni.size(); i++){initial_inbreeding += mate_value_matrix[(i*malegametecount)+sire_mate_column[i]];}
                 }
                 if(Mating == "random5")
                 {
                     logfile << "       - Only Matings less than 0.50 percent related allowed to mate." << endl;
-                    
-                    for(int i = 0; i < row; i++)
+                    for(int i = 0; i < (malegametecount * femalegametecount); i++)
                     {
-                        for(int j = 0; j < col; j++)
-                        {
-                            if(mate_allocation(i,j) < 0.49){mate_allocation(i,j) = 0.0;}   /* Set all to zero less than 0.49 */
-                        }
+                        if(mate_value_matrix[i] < 0.50){mate_value_matrix[i] = 0;} /* Set all to zero less than 0.5 */
                     }
                     initial_inbreeding = 0.0;
-                    for(int i = 0; i < rowUni.size(); i++){initial_inbreeding += mate_allocation(i,sire_mate_column[i]);}
+                    for(int i = 0; i < maleUni.size(); i++){initial_inbreeding += mate_value_matrix[(i*malegametecount)+sire_mate_column[i]];}
                 }
                 if(Mating == "random25")
                 {
                     logfile << "       - Only Matings less than 0.25 percent related allowed to mate." << endl;
-                    for(int i = 0; i < row; i++)
+                    for(int i = 0; i < (malegametecount * femalegametecount); i++)
                     {
-                        for(int j = 0; j < col; j++)
-                        {
-                            if(mate_allocation(i,j) < 0.24){mate_allocation(i,j) = 0.0;}    /* Set all to zero less than 0.24*/
-                        }
+                        if(mate_value_matrix[i] < 0.25){mate_value_matrix[i] = 0;} /* Set all to zero less than 0.25 */
                     }
                     initial_inbreeding = 0.0;
-                    for(int i = 0; i < rowUni.size(); i++){initial_inbreeding += mate_allocation(i,sire_mate_column[i]);}
+                    for(int i = 0; i < maleUni.size(); i++){initial_inbreeding += mate_value_matrix[(i*malegametecount)+sire_mate_column[i]];}
                 }
                 if(Mating == "random125")
                 {
                     logfile << "       - Only Matings less than 0.125 percent related allowed to mate." << endl;
-                    for(int i = 0; i < row; i++)
+                    for(int i = 0; i < (malegametecount * femalegametecount); i++)
                     {
-                        for(int j = 0; j < col; j++)
-                        {
-                            if(mate_allocation(i,j) < 0.12){mate_allocation(i,j) = 0.0;}    /* Set all to zero less than 0.12*/
-                        }
+                        if(mate_value_matrix[i] < 0.125){mate_value_matrix[i] = 0;} /* Set all to zero less than 0.125 */
                     }
                     initial_inbreeding = 0.0;
-                    for(int i = 0; i < rowUni.size(); i++){initial_inbreeding += mate_allocation(i,sire_mate_column[i]);}
+                    for(int i = 0; i < maleUni.size(); i++){initial_inbreeding += mate_value_matrix[(i*malegametecount)+sire_mate_column[i]];}
                 }
-                if(initial_inbreeding > 0.0 )
+                if(Mating == "minPedigree")
                 {
-                    double temperature = 1800.0;
+                    logfile << "       - Minimize coancestries based on Pedigree information." << endl;
+                    initial_inbreeding = 0.0;
+                    for(int i = 0; i < maleUni.size(); i++){initial_inbreeding += mate_value_matrix[(i*malegametecount)+sire_mate_column[i]];}
+                }
+                if(initial_inbreeding > 0.0)
+                {
+                    double temperature = 10000.0;
                     double epsilon = 0.001;
-                    double alpha = 0.999;
+                    double alpha = 0.9999;
                     /* Simulated Annealing Algorithm */
                     while(temperature > epsilon)
                     {
                         vector < int > next_sire_mate_column;
-                        for(int i = 0; i < rowUni.size(); i++)
+                        for(int i = 0; i < sire_mate_column.size(); i++)
                         {
                             next_sire_mate_column.push_back(sire_mate_column[i]);
                         }
@@ -5296,7 +5577,7 @@ int main()
                         int change[2];
                         for(int i = 0; i < 2; i++)
                         {
-                            std::uniform_real_distribution<double> distribution15(0,rowUni.size());
+                            std::uniform_real_distribution<double> distribution15(0,sire_mate_column.size());
                             change[i] = distribution15(gen);
                             if(i == 1)
                             {
@@ -5309,16 +5590,16 @@ int main()
                         next_sire_mate_column[change[1]] = oldfirstone;
                         // compute previous one
                         double cost_previous = 0.0;
-                        for(int i = 0; i < rowUni.size(); i++){cost_previous += mate_allocation(i,sire_mate_column[i]);}
+                        for(int i = 0; i < sire_mate_column.size(); i++){cost_previous += mate_value_matrix[(i*malegametecount)+sire_mate_column[i]];}
                         // compute new one
                         double cost_current = 0.0;
-                        for(int i = 0; i < rowUni.size(); i++){cost_current += mate_allocation(i,next_sire_mate_column[i]);}
+                        for(int i = 0; i < sire_mate_column.size(); i++){cost_current += mate_value_matrix[(i*malegametecount)+next_sire_mate_column[i]];}
                         // Used to determine if you want to change it it is worse
                         double sa = exp((-cost_previous-cost_current)/temperature);
                         // check the boolean condition
                         if(cost_current < cost_previous)
                         {
-                            for(int i = 0; i < rowUni.size(); i++){sire_mate_column[i] = next_sire_mate_column[i];}
+                            for(int i = 0; i < sire_mate_column.size(); i++){sire_mate_column[i] = next_sire_mate_column[i];}
                         }
                         else
                         {
@@ -5326,7 +5607,7 @@ int main()
                             double sample = distribution16(gen);
                             if(sample < sa)
                             {
-                                for(int i = 0; i < rowUni.size(); i++)
+                                for(int i = 0; i < sire_mate_column.size(); i++)
                                 {
                                     sire_mate_column[i] = next_sire_mate_column[i];
                                 }
@@ -5335,187 +5616,208 @@ int main()
                         temperature = temperature * alpha;
                     }
                 }
-                initial_inbreeding = 0.0; int matingover125 = 0;
-                for(int i = 0; i < rowUni.size(); i++)
+                /* See how mating pattern did */
+                for(int i = 0; i < malegametecount; i++)
                 {
-                    if(parent_A(A_location_row[i],A_location_col[sire_mate_column[i]]) > 0.125){matingover125 += 1;}
-                    initial_inbreeding += parent_A(A_location_row[i],A_location_col[sire_mate_column[i]]);
+                    for(int j = 0; j < femalegametecount; j++)
+                    {
+                        mate_value_matrix[(i*malegametecount)+j] = subsetrelationship[(maleA[i]*parentID.size())+femaleA[j]];
+                    }
                 }
-                logfile << "       - Inbreeding Level after removing avoidance matings: " << initial_inbreeding << " " << matingover125 << endl;
-                /* Increase age of parents by one */
-                for(int i = 0; i < population.size(); i++){population[i].UpdateAge();}
-                /* loop across each row in mate allocation matrix, which is total number of matings */
-                for(int i = 0; i < rowUni.size(); i++)
+                greater125 = 0; greater25 = 0; greater5 = 0;
+                mean = 0.0; min = 1.0; max = 0.0;
+                for(int i = 0; i < maleUni.size(); i++)
                 {
-                    string maleGame = rowGamete[i];
-                    string femaleGame = colGamete[sire_mate_column[i]];
-                    int SNP = maleGame.size();
-                    /* Convert to Genotypes form */
-                    vector < int > fullhomo1(SNP,0);            /* declare array for homologue 1 */
-                    vector < int > fullhomo2(SNP,0);            /* declare array for homologue 1 */
-                    vector < int > Geno(SNP,0);                 /* declare genotype array */
-                    /* Convert Genotype string to genotype array */
-                    for (int m = 0; m < SNP; m++){fullhomo1[m] = maleGame[m] - 48; fullhomo2[m] = femaleGame[m] - 48;}
-                    // From two haplotypes create genotypes: 0 = a1,a1; 2 = a2,a2; 3 = a1,a2; 4 = a2,a1
-                    for (int m = 0; m < SNP; m++)
+                    double temp = mate_value_matrix[(i*malegametecount)+sire_mate_column[i]];
+                    coancestoryvalues[i] = temp;
+                    mean += temp;
+                    if(temp < min){min = temp;}
+                    if(temp > max){max = temp;}
+                    if(temp >= 0.125){greater125++;}
+                    if(temp >= 0.25){greater25++;}
+                    if(temp >= 0.50){greater5++;}
+                }
+                logfile << "       - Inbreeding Level after mating strategy: " << endl;
+                logfile << "            - Initial Mean (Min - Max) Coancestory: " << mean / double(maleUni.size()) << " (" << min << " - " << max << ")." << endl;
+                logfile << "            - Number of matings > 0.125 relationship: " << greater125 << "." << endl;
+                logfile << "            - Number of matings > 0.25 relationship: " << greater25 << "." << endl;
+                logfile << "            - Number of matings > 0.50 relationship: " << greater5 << "." << endl;
+                delete [] subsetrelationship;
+                delete [] mate_value_matrix;
+            }
+            /* Increase age of parents by one */
+            for(int i = 0; i < population.size(); i++){population[i].UpdateAge();}
+            /* loop across each row in mate allocation matrix, which is total number of matings */
+            for(int i = 0; i < maleUni.size(); i++)
+            {
+                string maleGame = malegamete[i];
+                string femaleGame = femalegamete[sire_mate_column[i]];
+                int SNP = maleGame.size();
+                /* Convert to Genotypes form */
+                vector < int > fullhomo1(SNP,0);            /* declare array for homologue 1 */
+                vector < int > fullhomo2(SNP,0);            /* declare array for homologue 1 */
+                vector < int > Geno(SNP,0);                 /* declare genotype array */
+                /* Convert Genotype string to genotype array */
+                for (int m = 0; m < SNP; m++){fullhomo1[m] = maleGame[m] - 48; fullhomo2[m] = femaleGame[m] - 48;}
+                // From two haplotypes create genotypes: 0 = a1,a1; 2 = a2,a2; 3 = a1,a2; 4 = a2,a1
+                for (int m = 0; m < SNP; m++)
+                {
+                    if(fullhomo1[m] == 1 & fullhomo2[m] == 1){Geno[m] = 0;}             /* genotype a1a1 */
+                    if(fullhomo1[m] == 2 & fullhomo2[m] == 2){Geno[m] = 2;}             /* genotype a2a2 */
+                    if(fullhomo1[m] == 1 & fullhomo2[m] == 2){Geno[m] = 3;}             /* genotype a1a2 */
+                    if(fullhomo1[m] == 2 & fullhomo2[m] == 1){Geno[m] = 4;}             /* genotype a2a1 */
+                }
+                /* Split off into Marker and QTL based on updated index */
+                /* MarkerGeno array contains Markers and QTL therefore need to split them off based on index arrays that were created previously */
+                vector < int > MarkerGenotypes(NUMBERMARKERS,0);        /* Marker Genotypes; Will always be of this size */
+                vector < int > QTLGenotypes(QTL_Index.size(),0);        /* QTL Genotypes */
+                m_counter = 0;                                          /* Counter to keep track where at in Marker Index */
+                qtl_counter = 0;                                        /* Counter to keep track where at in QTL Index */
+                /* Fill Genotype Array */
+                for(int j = 0; j < (TotalQTL + TotalMarker + CounterMutationIndex); j++) /* Place Genotypes based on Index value */
+                {
+                    if(j == MarkerIndex[m_counter]){MarkerGenotypes[m_counter] = Geno[j]; m_counter++;}
+                    if(j == QTL_Index[qtl_counter]){QTLGenotypes[qtl_counter] = Geno[j]; qtl_counter++;}
+                    
+                }
+                Geno.clear();
+                /* Before you put the individual in the founder population need to determine if it dies */
+                /* Starts of as a viability of 1.0 */
+                double relativeviability = 1.0;                         /* represents the multiplicative fitness effect across lethal and sub-lethal alleles */
+                for(int j = 0; j < QTL_IndCounter; j++)
+                {
+                    if(QTL_Type[j] == 3 || QTL_Type[j] == 4 || QTL_Type[j] == 5)            /* Fitness QTL */
                     {
-                        if(fullhomo1[m] == 1 & fullhomo2[m] == 1){Geno[m] = 0;}             /* genotype a1a1 */
-                        if(fullhomo1[m] == 2 & fullhomo2[m] == 2){Geno[m] = 2;}             /* genotype a2a2 */
-                        if(fullhomo1[m] == 1 & fullhomo2[m] == 2){Geno[m] = 3;}             /* genotype a1a2 */
-                        if(fullhomo1[m] == 2 & fullhomo2[m] == 1){Geno[m] = 4;}             /* genotype a2a1 */
+                        if(QTLGenotypes[j] == QTL_Allele[j]){relativeviability = relativeviability * (1-(QTL_Add_Fit[j]));}
+                        if(QTLGenotypes[j] > 2){relativeviability = relativeviability * (1-(QTL_Dom_Fit[j] * QTL_Add_Fit[j]));}
                     }
-                    /* Split off into Marker and QTL based on updated index */
-                    /* MarkerGeno array contains Markers and QTL therefore need to split them off based on index arrays that were created previously */
-                    vector < int > MarkerGenotypes(NUMBERMARKERS,0);        /* Marker Genotypes; Will always be of this size */
-                    vector < int > QTLGenotypes(QTL_Index.size(),0);        /* QTL Genotypes */
-                    m_counter = 0;                                          /* Counter to keep track where at in Marker Index */
-                    qtl_counter = 0;                                        /* Counter to keep track where at in QTL Index */
-                    /* Fill Genotype Array */
-                    for(int j = 0; j < (TotalQTL + TotalMarker + CounterMutationIndex); j++) /* Place Genotypes based on Index value */
+                }
+                /* now take a draw from a uniform and if less than relativeviability than survives if greater than dead */
+                std::uniform_real_distribution<double> distribution5(0,1);
+                double draw = distribution5(gen);
+                if(draw > relativeviability)                                                    /* Animal Died due to a low fitness */
+                {
+                    /* Need to add one to dead progeny for sire and dam */
+                    int j = 0;
+                    while(j < population.size())
                     {
-                        if(j == MarkerIndex[m_counter]){MarkerGenotypes[m_counter] = Geno[j]; m_counter++;}
-                        if(j == QTL_Index[qtl_counter]){QTLGenotypes[qtl_counter] = Geno[j]; qtl_counter++;}
-                        
+                        if(population[j].getID() == maleid[i]){population[j].Update_Dead(); break;}
+                        j++;
                     }
-                    Geno.clear();
-                    /* Before you put the individual in the founder population need to determine if it dies */
-                    /* Starts of as a viability of 1.0 */
-                    double relativeviability = 1.0;                         /* represents the multiplicative fitness effect across lethal and sub-lethal alleles */
-                    for(int j = 0; j < QTL_IndCounter; j++)
+                    j = 0;
+                    while(j < population.size())
+                    {
+                        if(population[j].getID() == femaleid[sire_mate_column[i]]){population[j].Update_Dead(); break;}
+                        j++;
+                    }
+                    string Qf;
+                    stringstream strStreamQf (stringstream::in | stringstream::out);
+                    for (int j=0; j < qtl_counter; j++){if(QTL_Type[j] == 3 || QTL_Type[j] == 4 || QTL_Type[j] == 5){strStreamQf << QTLGenotypes[j];}}
+                    string QF = strStreamQf.str();
+                    std::ofstream output1(lowfitnesspath, std::ios_base::app | std::ios_base::out);
+                    output1 << maleid[i] << " " << femaleid[sire_mate_column[i]] << " " << relativeviability << " " <<  QF << endl;
+                    LethalFounder++;
+                }
+                if(draw < relativeviability)                                                    /* Animal Survived */
+                {
+                    //////////////////////////////////////////////////////////////////////////
+                    // Step 8: Create founder file that has everything set for Animal Class //
+                    //////////////////////////////////////////////////////////////////////////
+                    // Set up paramters for Animal Class
+                    /* Declare Variables */
+                    double GenotypicValue = 0.0;                                       /* Stores Genotypic value; resets to zero for each line */
+                    double BreedingValue = 0.0;                                        /* Stores Breeding Value; resets to zero for each line */
+                    double DominanceDeviation = 0.0;                                   /* Stores Dominance Deviation; resets to zero for each line */
+                    double Residual = 0.0;                                             /* Stores Residual Value; resets to zero for each line */
+                    double Phenotype = 0.0;                                            /* Stores Phenotype; resets to zero for each line */
+                    double Homoz = 0.0;                                                /* Stores homozygosity based on marker information */
+                    double DiagGenoInb = 0.0;                                          /* Diagonal of Genomic Relationship Matrix */
+                    double sex;                                                        /* draw from uniform to determine sex */
+                    int Sex;                                                           /* Sex of the animal 0 is male 1 is female */
+                    double residvar = 1 - (Variance_Additiveh2 + Variance_Dominanceh2);/* Residual Variance; Total Variance equals 1 */
+                    residvar = sqrt(residvar);                                         /* random number generator need standard deviation */
+                    /* Determine Sex of the animal based on draw from uniform distribution; if sex < 0.5 sex is 0 if sex >= 0.5 */
+                    std::uniform_real_distribution<double> distribution5(0,1);
+                    sex = distribution5(gen);
+                    if(sex < 0.5){Sex = 0;}         /* Male */
+                    if(sex >= 0.5){Sex = 1;}        /* Female */
+                    /* Calculate Genotypic Value */
+                    for(int j = 0; j < qtl_counter; j++)
+                    {
+                        if(QTL_Type[j] == 2 || QTL_Type[j] == 3)            /* Quantitative QTL */
+                        {
+                            int tempgeno;
+                            if(QTLGenotypes[j] == 0 || QTLGenotypes[j] == 2){tempgeno = QTLGenotypes[j];}
+                            if(QTLGenotypes[j] == 3 || QTLGenotypes[j] == 4){tempgeno = 1;}
+                            /* Breeding value is only a function of additive effects */
+                            BreedingValue += tempgeno * QTL_Add_Quan[j];
+                            if(tempgeno != 1){GenotypicValue += tempgeno * QTL_Add_Quan[j];}     /* Not a heterozygote so only a function of additive */
+                            if(tempgeno == 1)
+                            {
+                                GenotypicValue += (tempgeno * QTL_Add_Quan[j]) + QTL_Dom_Quan[j];    /* Heterozygote so need to include add and dom */
+                                DominanceDeviation += QTL_Dom_Quan[j];
+                            }
+                        }
+                    }
+                    /* Calculate Homozygosity only in the MARKERS */
+                    for(int j = 0; j < m_counter; j++)
+                    {
+                        if(MarkerGenotypes[j] == 0 || MarkerGenotypes[j] == 2){Homoz += 1;}
+                        if(MarkerGenotypes[j] == 3 || MarkerGenotypes[j] == 4){Homoz += 0;}
+                    }
+                    Homoz = (Homoz/(m_counter));
+                    /* Count number of homozygous fitness loci */
+                    int homozygouscount_lethal = 0; int homozygouscount_sublethal = 0;
+                    int heterzygouscount_lethal = 0; int heterzygouscount_sublethal = 0; double lethalequivalent = 0.0;
+                    for(int j = 0; j < qtl_counter; j++)
                     {
                         if(QTL_Type[j] == 3 || QTL_Type[j] == 4 || QTL_Type[j] == 5)            /* Fitness QTL */
                         {
-                            if(QTLGenotypes[j] == QTL_Allele[j]){relativeviability = relativeviability * (1-(QTL_Add_Fit[j]));}
-                            if(QTLGenotypes[j] > 2){relativeviability = relativeviability * (1-(QTL_Dom_Fit[j] * QTL_Add_Fit[j]));}
-                        }
-                    }
-                    /* now take a draw from a uniform and if less than relativeviability than survives if greater than dead */
-                    std::uniform_real_distribution<double> distribution5(0,1);
-                    double draw = distribution5(gen);
-                    if(draw > relativeviability)                                                    /* Animal Died due to a low fitness */
-                    {
-                        /* Need to add one to dead progeny for sire and dam */
-                        int j = 0;
-                        while(j < population.size())
-                        {
-                            if(population[j].getID() == rownames[i]){population[j].Update_Dead(); break;}
-                            j++;
-                        }
-                        j = 0;
-                        while(j < population.size())
-                        {
-                            if(population[j].getID() == colnames[sire_mate_column[i]]){population[j].Update_Dead(); break;}
-                            j++;
-                        }
-                        string Qf;
-                        stringstream strStreamQf (stringstream::in | stringstream::out);
-                        for (int j=0; j < qtl_counter; j++){if(QTL_Type[j] == 3 || QTL_Type[j] == 4 || QTL_Type[j] == 5){strStreamQf << QTLGenotypes[j];}}
-                        string QF = strStreamQf.str();
-                        std::ofstream output1(lowfitnesspath, std::ios_base::app | std::ios_base::out);
-                        output1 << rownames[i] << " " << colnames[sire_mate_column[i]] << " " << relativeviability << " " <<  QF << endl;
-                        LethalFounder++;
-                    }
-                    if(draw < relativeviability)                                                    /* Animal Survived */
-                    {
-                        //////////////////////////////////////////////////////////////////////////
-                        // Step 8: Create founder file that has everything set for Animal Class //
-                        //////////////////////////////////////////////////////////////////////////
-                        // Set up paramters for Animal Class
-                        /* Declare Variables */
-                        double GenotypicValue = 0.0;                                       /* Stores Genotypic value; resets to zero for each line */
-                        double BreedingValue = 0.0;                                        /* Stores Breeding Value; resets to zero for each line */
-                        double DominanceDeviation = 0.0;                                   /* Stores Dominance Deviation; resets to zero for each line */
-                        double Residual = 0.0;                                             /* Stores Residual Value; resets to zero for each line */
-                        double Phenotype = 0.0;                                            /* Stores Phenotype; resets to zero for each line */
-                        double Homoz = 0.0;                                                /* Stores homozygosity based on marker information */
-                        double DiagGenoInb = 0.0;                                          /* Diagonal of Genomic Relationship Matrix */
-                        double sex;                                                        /* draw from uniform to determine sex */
-                        int Sex;                                                           /* Sex of the animal 0 is male 1 is female */
-                        double residvar = 1 - (Variance_Additiveh2 + Variance_Dominanceh2);/* Residual Variance; Total Variance equals 1 */
-                        residvar = sqrt(residvar);                                         /* random number generator need standard deviation */
-                        /* Determine Sex of the animal based on draw from uniform distribution; if sex < 0.5 sex is 0 if sex >= 0.5 */
-                        std::uniform_real_distribution<double> distribution5(0,1);
-                        sex = distribution5(gen);
-                        if(sex < 0.5){Sex = 0;}         /* Male */
-                        if(sex >= 0.5){Sex = 1;}        /* Female */
-                        /* Calculate Genotypic Value */
-                        for(int j = 0; j < qtl_counter; j++)
-                        {
-                            if(QTL_Type[j] == 2 || QTL_Type[j] == 3)            /* Quantitative QTL */
+                            if(QTLGenotypes[j] == QTL_Allele[j])
                             {
-                                int tempgeno;
-                                if(QTLGenotypes[j] == 0 || QTLGenotypes[j] == 2){tempgeno = QTLGenotypes[j];}
-                                if(QTLGenotypes[j] == 3 || QTLGenotypes[j] == 4){tempgeno = 1;}
-                                /* Breeding value is only a function of additive effects */
-                                BreedingValue += tempgeno * QTL_Add_Quan[j];
-                                if(tempgeno != 1){GenotypicValue += tempgeno * QTL_Add_Quan[j];}     /* Not a heterozygote so only a function of additive */
-                                if(tempgeno == 1)
-                                {
-                                    GenotypicValue += (tempgeno * QTL_Add_Quan[j]) + QTL_Dom_Quan[j];    /* Heterozygote so need to include add and dom */
-                                    DominanceDeviation += QTL_Dom_Quan[j];
-                                }
+                                if(QTL_Type[j] == 4){homozygouscount_lethal += 1;}
+                                if(QTL_Type[j] == 3 || QTL_Type[j] == 5){homozygouscount_sublethal += 1;}
+                                lethalequivalent += QTL_Add_Fit[j];
+                            }
+                            if(QTLGenotypes[j] > 2)
+                            {
+                                if(QTL_Type[j] == 4){heterzygouscount_lethal += 1;}
+                                if(QTL_Type[j] == 3 || QTL_Type[j] == 5){heterzygouscount_sublethal += 1;}
+                                lethalequivalent += QTL_Add_Fit[j];
                             }
                         }
-                        /* Calculate Homozygosity only in the MARKERS */
-                        for(int j = 0; j < m_counter; j++)
-                        {
-                            if(MarkerGenotypes[j] == 0 || MarkerGenotypes[j] == 2){Homoz += 1;}
-                            if(MarkerGenotypes[j] == 3 || MarkerGenotypes[j] == 4){Homoz += 0;}
-                        }
-                        Homoz = (Homoz/(m_counter));
-                        /* Count number of homozygous fitness loci */
-                        int homozygouscount_lethal = 0; int homozygouscount_sublethal = 0;
-                        int heterzygouscount_lethal = 0; int heterzygouscount_sublethal = 0; double lethalequivalent = 0.0;
-                        for(int j = 0; j < qtl_counter; j++)
-                        {
-                            if(QTL_Type[j] == 3 || QTL_Type[j] == 4 || QTL_Type[j] == 5)            /* Fitness QTL */
-                            {
-                                if(QTLGenotypes[j] == QTL_Allele[j])
-                                {
-                                    if(QTL_Type[j] == 4){homozygouscount_lethal += 1;}
-                                    if(QTL_Type[j] == 3 || QTL_Type[j] == 5){homozygouscount_sublethal += 1;}
-                                    lethalequivalent += QTL_Add_Fit[j];
-                                }
-                                if(QTLGenotypes[j] > 2)
-                                {
-                                    if(QTL_Type[j] == 4){heterzygouscount_lethal += 1;}
-                                    if(QTL_Type[j] == 3 || QTL_Type[j] == 5){heterzygouscount_sublethal += 1;}
-                                    lethalequivalent += QTL_Add_Fit[j];
-                                }
-                            }
-                        }
-                        float S = 0.0;
-                        for(int j = 0; j < m_counter; j++)
-                        {
-                            double temp = MarkerGenotypes[j];
-                            if(temp == 3 || temp == 4){temp = 1;}
-                            temp = (temp - 1) - (2 * (founderfreq[j] - 0.5));           /* Convert it to - 1 0 1 and then put it into Z format */
-                            S += temp * temp;                                       /* Multipy then add to sum */
-                        }
-                        double diagInb = S / scale;
-                        /* Subtract off mean Genotypic Value in Founder Generation */
-                        GenotypicValue = GenotypicValue - BaseGenGV;
-                        BreedingValue = BreedingValue - BaseGenBV;
-                        DominanceDeviation = DominanceDeviation - BaseGenDD;
-                        /* put marker, qtl and fitness into string to store */
-                        stringstream strStreamM (stringstream::in | stringstream::out);
-                        for (int j=0; j < m_counter; j++){strStreamM << MarkerGenotypes[j];}
-                        string MA = strStreamM.str();
-                        stringstream strStreamQt (stringstream::in | stringstream::out);
-                        for (int j=0; j < qtl_counter; j++){strStreamQt << QTLGenotypes[j];}
-                        string QT = strStreamQt.str();
-                        /* Sample from standard normal to generate environmental effect */
-                        std::normal_distribution<double> distribution6(0.0,residvar);
-                        Residual = distribution6(gen);
-                        Phenotype = GenotypicValue + Residual;
-                        double rndselection = distribution5(gen);
-                        double rndculling = distribution5(gen);
-                        /* ID S D Sex Gen Age Prog Mts DdPrg RndSel RndCul Ped_F Gen_F H1F H2F H3F FitHomo FitHeter LethEqv Homozy EBV Acc P GV R M QN QF PH MH*/
-                        Animal animal(StartID,rownames[i],colnames[sire_mate_column[i]],Sex,Gen,1,0,0,0,rndselection,rndculling,0.0,diagInb,0.0,0.0,0.0,homozygouscount_lethal, heterzygouscount_lethal, homozygouscount_sublethal, heterzygouscount_sublethal,lethalequivalent,Homoz,0.0,0.0,Phenotype,relativeviability,GenotypicValue,BreedingValue,DominanceDeviation,Residual,MA,QT,"","","");
-                        /* Then place given animal object in population to store */
-                        population.push_back(animal);
-                        StartID++;                              /* Increment ID by one for next individual */
                     }
+                    float S = 0.0;
+                    for(int j = 0; j < m_counter; j++)
+                    {
+                        double temp = MarkerGenotypes[j];
+                        if(temp == 3 || temp == 4){temp = 1;}
+                        temp = (temp - 1) - (2 * (founderfreq[j] - 0.5));           /* Convert it to - 1 0 1 and then put it into Z format */
+                        S += temp * temp;                                       /* Multipy then add to sum */
+                    }
+                    double diagInb = S / scale;
+                    /* Subtract off mean Genotypic Value in Founder Generation */
+                    GenotypicValue = GenotypicValue - BaseGenGV;
+                    BreedingValue = BreedingValue - BaseGenBV;
+                    DominanceDeviation = DominanceDeviation - BaseGenDD;
+                    /* put marker, qtl and fitness into string to store */
+                    stringstream strStreamM (stringstream::in | stringstream::out);
+                    for (int j=0; j < m_counter; j++){strStreamM << MarkerGenotypes[j];}
+                    string MA = strStreamM.str();
+                    stringstream strStreamQt (stringstream::in | stringstream::out);
+                    for (int j=0; j < qtl_counter; j++){strStreamQt << QTLGenotypes[j];}
+                    string QT = strStreamQt.str();
+                    /* Sample from standard normal to generate environmental effect */
+                    std::normal_distribution<double> distribution6(0.0,residvar);
+                    Residual = distribution6(gen);
+                    Phenotype = GenotypicValue + Residual;
+                    double rndselection = distribution5(gen);
+                    double rndculling = distribution5(gen);
+                    /* ID S D Sex Gen Age Prog Mts DdPrg RndSel RndCul Ped_F Gen_F H1F H2F H3F FitHomo FitHeter LethEqv Homozy EBV Acc P GV R M QN QF PH MH*/
+                    Animal animal(StartID,maleid[i],femaleid[sire_mate_column[i]],Sex,Gen,1,0,0,0,rndselection,rndculling,0.0,diagInb,0.0,0.0,0.0,homozygouscount_lethal, heterzygouscount_lethal, homozygouscount_sublethal, heterzygouscount_sublethal,lethalequivalent,Homoz,0.0,0.0,Phenotype,relativeviability,GenotypicValue,BreedingValue,DominanceDeviation,Residual,MA,QT,"","","");
+                    /* Then place given animal object in population to store */
+                    population.push_back(animal);
+                    StartID++;                              /* Increment ID by one for next individual */
                 }
             }
             logfile << "       - Number of Progeny that Died due to fitness: " << LethalFounder << endl;
@@ -5560,14 +5862,10 @@ int main()
                         string homo2 = temp;                                                                        /* Maternal haplotypes */
                         for(int g = 0; g < temp.size(); g++)
                         {
-                            if(homo1[g] == '0'){homo1[g] = '1';}
-                            if(homo2[g] == '0'){homo2[g] = '1';}
-                            if(homo1[g] == '2'){homo1[g] = '2';}
-                            if(homo2[g] == '2'){homo2[g] = '2';}
-                            if(homo1[g] == '3'){homo1[g] = '1';}
-                            if(homo2[g] == '3'){homo2[g] = '2';}
-                            if(homo1[g] == '4'){homo1[g] = '2';}
-                            if(homo2[g] == '4'){homo2[g] = '1';}
+                            if(homo1[g] == '0'){homo1[g] = '1'; homo2[g] = '1';}
+                            if(homo1[g] == '2'){homo1[g] = '2'; homo2[g] = '2';}
+                            if(homo1[g] == '3'){homo1[g] = '1'; homo2[g] = '2';}
+                            if(homo1[g] == '4'){homo1[g] = '2'; homo2[g] = '1';}
                         }
                         /* Loop across two gametes and see if unique if so put in haplotype library */
                         for(int g = 0; g < 2; g++)
@@ -5919,6 +6217,8 @@ int main()
                 ROWS = population.size();                           /* Current Size of Population Class */
                 i = 0;
                 string Action;                                          /* Based on Selection used will result in an action that is common to all */
+                
+                
                 while(i < ROWS)
                 {
                     while(1)
@@ -5931,7 +6231,7 @@ int main()
                             if(population[i].getSex()==1 && population[i].getAge()>1 && population[i].getRndCulling()<=FemaleCutOff){Action = "KP_Female";break;}
                             if(population[i].getAge()==1){Action = "Young_Animal"; break;}
                         }
-                        if(Culling == "phenotype" && SelectionDir == "low")
+                        if(Culling == "phenotype" && SelectionDir == "low") /* remove high animals */
                         {
                             if(population[i].getSex()==0 && population[i].getAge()>1 && population[i].getPhenotype()>MaleCutOff){Action = "RM_Male";break;}
                             if(population[i].getSex()==0 && population[i].getAge()>1 && population[i].getPhenotype()<=MaleCutOff){Action = "KP_Male";break;}
@@ -6049,6 +6349,22 @@ int main()
                 time_t end_block5 = time(0);
                 logfile << "   Finished " << Culling << " culling of parents (Time: " << difftime(end_block5,start_block5) << " seconds)." << endl << endl;
             }
+            /* Calculated expected heterozygosity in progeny */
+            double expectedhet = 0.0; vector < string > population_marker;
+            for(int i = 0; i < population.size(); i++)
+            {
+                if(population[i].getAge() == 1){population_marker.push_back(population[i].getMarker());}
+            }
+            double* tempfreqexphet = new double[population_marker[0].size()];               /* Array that holds SNP frequencies that were declared as Markers*/
+            frequency_calc(population_marker, tempfreqexphet);                              /* Function to calculate snp frequency */
+            for(int i = 0; i < population_marker[0].size(); i++)
+            {
+                expectedhet += (1 - ((tempfreqexphet[i]*tempfreqexphet[i]) + ((1-tempfreqexphet[i])*(1-tempfreqexphet[i]))));
+            }
+            expectedhet /= double(population_marker[0].size());
+            population_marker.clear(); delete [] tempfreqexphet;
+            ExpectedHeter[Gen] = expectedhet;
+            logfile << "   Expected Heterozygosity in progeny calculated: " << ExpectedHeter[Gen] << "." << endl << endl;
             /* Calculate Frequencies */
             vector < string > genfreqgeno;
             for(int i = 0; i < population.size(); i++){genfreqgeno.push_back(population[i].getQTL());}
@@ -6218,9 +6534,9 @@ int main()
             vector < int > animal(TotalAnimalNumber,0);
             MatrixXd Relationship(TotalAnimalNumber,TotalAnimalNumber);
             MatrixXd Relationshipinv(TotalAnimalNumber,TotalAnimalNumber);
-            if(EBV_Calc == "h1" || EBV_Calc == "h2" || EBV_Calc == "h3" || EBV_Calc == "genomic")
+            if(EBV_Calc == "h1" || EBV_Calc == "h2" || EBV_Calc == "ROH" || EBV_Calc == "genomic")
             {
-                if(EBV_Calc == "h1" || EBV_Calc == "h2" || EBV_Calc == "h3")
+                if(EBV_Calc == "h1" || EBV_Calc == "h2" || EBV_Calc == "ROH")
                 {
                     logfile << "           - Begin Constructing Genomic Relationship Matrix." << endl;
                     /* Initialize Relationship Matrix as 0.0 */
@@ -6335,7 +6651,7 @@ int main()
                                         H(hap2,hap1) = H(hap1,hap2);
                                     }
                                 }
-                                if(EBV_Calc == "h3")
+                                if(EBV_Calc == "ROH")
                                 {
                                     if(hap1 == hap2){H(hap1,hap2) = 1;}
                                     if(hap1 != hap2)
@@ -6372,6 +6688,7 @@ int main()
                                         VectorXd den(1);                                                 /* Scale Relationship Matrix */
                                         den(0) = haplib.size();
                                         Relationship(ind1,ind2) = Relationship(ind1,ind2) / den(0);
+                                        if(ind1 == ind2){Relationship(ind2,ind1) = Relationship(ind2,ind1) + 1e-5;}
                                         if(ind1 != ind2){Relationship(ind2,ind1) = Relationship(ind2,ind1) / den(0);}
                                     }
                                 }
@@ -6623,22 +6940,19 @@ int main()
                 logfile << "           - Finished constructing Genomic Relationship Inverse." << endl;
                 logfile << "               - Took: " << difftime(end,start) << " seconds." << endl;
                 /* Still need to calculate pedigree inbreeding so do it now */
-                double *f_qs_u = new double[TotalAnimalNumber];
-                pedigree_inbreeding(Pheno_Pedigree_File,f_qs_u);                /* Function that calculates inbreeding */
+                double *f_ped = new double[TotalAnimalNumber];
+                pedigree_inbreeding(Pheno_Pedigree_File,f_ped);                /* Function that calculates inbreeding */
                 /* All animals of age 1 haven't had inbreeding updated so need to update real inbreeding value */
                 for(int i = 0; i < population.size(); i++)                                      /* Loop across individuals in population */
                 {
                     int j = 0;                                                                  /* Counter for population spot */
                     while(1)
                     {
-                        if(population[i].getID() == animal[j])
-                        {
-                            double temp = f_qs_u[j] - 1; population[i].UpdateInb(temp); break;
-                        }
+                        if(population[i].getID() == animal[j]){double temp = f_ped[j]; population[i].UpdateInb(temp); break;}
                         j++;                                                                    /* Loop across until animal has been found */
                     }
                 }
-                delete[] f_qs_u;
+                delete[] f_ped;
             }
             if(EBV_Calc == "pedigree")
             {
@@ -6661,8 +6975,8 @@ int main()
                     linenumber++;
                 }
                 double *f_ainv = new double[TotalAnimalNumber * TotalAnimalNumber];
-                double *f_qs_u = new double[TotalAnimalNumber];
-                pedigree_inverse(animal,sire,dam,f_ainv,f_qs_u);                    /* Function that calculates A-inverse */
+                double *f_ped = new double[TotalAnimalNumber];
+                pedigree_inverse(animal,sire,dam,f_ainv,f_ped);                    /* Function that calculates A-inverse */
                 /* Fill eigen matrix of A inverse*/
                 Relationshipinv = MatrixXd::Identity(TotalAnimalNumber,TotalAnimalNumber);
                 for(int i = 0; i < TotalAnimalNumber; i++){Relationshipinv(i,i) = 0;}
@@ -6679,11 +6993,11 @@ int main()
                     int j = 0;                                                                  /* Counter for population spot */
                     while(1)
                     {
-                        if(population[i].getID() == animal[j]){double temp = f_qs_u[j] - 1; population[i].UpdateInb(temp); break;}
+                        if(population[i].getID() == animal[j]){double temp = f_ped[j]; population[i].UpdateInb(temp); break;}
                         j++;                                                                    /* Loop across until animal has been found */
                     }
                 }
-                delete[] f_qs_u;
+                delete[] f_ped;
             }
             logfile << "   - Begin Solving for equations using " << Solver << " method." << endl;
             start = time(0);
@@ -6877,7 +7191,7 @@ int main()
         /* Generate QTL summary Stats */
         int totalgroups = GENERATIONS + 1;
         generatesummaryqtl(Pheno_GMatrix_File, qtl_class_object, Summary_QTL_path,totalgroups,ID_Gen,AdditiveVar,DominanceVar,NumDeadFitness);
-        generatessummarydf(Master_DataFrame_path,Summary_DF_path,totalgroups);
+        generatessummarydf(Master_DataFrame_path,Summary_DF_path,totalgroups,ExpectedHeter);
         /* Make location be chr and pos instead of in current format to make it easier for user. */
         vector <string> numbers;
         line;

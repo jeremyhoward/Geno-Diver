@@ -20,84 +20,98 @@ using namespace std;
 ////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////
 /* Generate inverse of relationship matrix: pass animal sire and dam as a reference; output is ainverse */
-void pedigree_inverse(vector <int> const &f_anim, vector <int> const &f_sire, vector <int> const &f_dam, double* output, double* output_qs_u)
+void pedigree_inverse(vector <int> const &f_anim, vector <int> const &f_sire, vector <int> const &f_dam, double* output, double* output_f)
 {
-    vector < double > qs_u(f_anim.size(),0);                                    /* 1 - u = are inbreeding coeffecients */
-    vector < double > qs_v(f_anim.size(),0);                                    /* diagonal elements */
-    for(int k = 0; k < f_anim.size(); k++)                                      /* Loop across animals */
+    int TotalAnimalNumber = f_anim.size();
+    vector < double > F((TotalAnimalNumber+1),0.0);
+    vector < double > D(TotalAnimalNumber,0.0);
+    /* This it makes so D calculate is correct */
+    F[0] = -1;
+    for(int k = f_anim[0]; k < (f_anim.size()+1); k++)                  /* iterate through each row of l */
     {
-        /* Part 1a of Quass */
-        if(f_sire[k] == 0 && f_dam[k] == 0){qs_v[k] = 1;}
-        if(f_sire[k] == 0 && f_dam[k] != 0){qs_v[k] = sqrt(1-0.25 * qs_u[((f_dam[k])-1)]);}
-        if(f_sire[k] != 0 && f_dam[k] == 0){qs_v[k] = sqrt(1-0.25 * qs_u[((f_sire[k])-1)]);}
-        if(f_sire[k] != 0 && f_dam[k] != 0){qs_v[k] = sqrt(1-0.25 * qs_u[((f_sire[k])-1)]-0.25*qs_u[((f_dam[k])-1)]);}
-        int Animal = k + 1;
-        /* Part 1b of Quass */
-        if(k < f_anim.size())
+        vector < double > L(TotalAnimalNumber,0.0);
+        vector < double > AN;                                       // Holds all ancestors of individuals
+        double ai = 0.0;                                            /* ai  is the inbreeding */
+        AN.push_back(k);                                            /* push back animal in ancestor */
+        L[k-1] = 1.0;
+        /* Calculate D */
+        D[k-1] = 0.5 - (0.25 * (F[f_sire[k-1]] + F[f_dam[k-1]]));
+        int j = k;                                          /* start off at K then go down */
+        while(AN.size() > 0)
         {
-            for(int i = (k+1); i < f_anim.size(); i++)
+            /* if sire is know add to AN and add to L[j] */
+            if((f_sire[j-1]) != 0){AN.push_back(f_sire[j-1]); L[f_sire[j-1]-1] += 0.5 * L[j-1];}
+            /* if dam is known add to AN and add to L[j] */
+            if((f_dam[j-1]) != 0){AN.push_back(f_dam[j-1]); L[f_dam[j-1]-1] += 0.5 * L[j-1];}
+            /* add to inbreeding value */
+            ai += (L[j-1] * L[j-1] * D[j-1]);
+            /* Delete j from n */
+            int found = 0;
+            while(1)
             {
-                if(f_sire[i] >= Animal && f_dam[i] >= Animal){qs_v[i] = 0.5 * qs_v[((f_sire[i])-1)] + 0.5 * qs_v[((f_dam[i])-1)];}
-                if(f_sire[i] < Animal && f_dam[i]  >= Animal){qs_v[i] = 0.5 * qs_v[((f_dam[i])-1)];}
-                if(f_dam[i]  < Animal && f_sire[i] >= Animal){qs_v[i] = 0.5 * qs_v[((f_sire[i])-1)];}
-                if(f_sire[i] < Animal && f_dam[i]  < Animal) {qs_v[i] = 0;}
+                if(AN[found] == j){AN.erase(AN.begin()+found); break;}
+                if(AN[found] != j){found++;}
             }
-            /* Part 1c of Quass */
-            for(int l = k; l < f_anim.size(); l++)
-            {
-                qs_u[l] = qs_u[l] + (qs_v[l] * qs_v[l]);
-            }
+            /* Find youngest animal in AN to see if it has ancestors*/
+            j = -1;
+            for(int i = 0; i < AN.size(); i++){if(AN[i] > j){j = AN[i];}}
+            /* Erase Duplicates */
+            sort(AN.begin(),AN.end());
+            AN.erase(unique(AN.begin(),AN.end()),AN.end());
         }
-        /* Part 2 of Quass (i.e. Setting up Ainverse) */
-        double bi = (1/qs_v[k]) * (1/qs_v[k]);
-        if(f_sire[k] != 0 && f_dam[k] != 0) /* indexed by (row * f_anim.size()) + col */
+        /* calculate inbreeding value */
+        F[k] = ai - 1;
+        double bi = (1/sqrt(D[k-1])) * (1/sqrt(D[k-1]));
+        if(f_sire[k-1] != 0 && f_dam[k-1] != 0) /* indexed by (row * f_anim.size()) + col */
         {
-            output[((f_anim[k]-1)*f_anim.size())+(f_anim[k]-1)] = output[((f_anim[k]-1)*f_anim.size())+(f_anim[k]-1)] + bi;
-            output[((f_sire[k]-1)*f_anim.size())+(f_anim[k]-1)] = output[((f_sire[k]-1)*f_anim.size())+(f_anim[k]-1)] - (bi/2);
-            output[((f_anim[k]-1)*f_anim.size())+(f_sire[k]-1)] = output[((f_anim[k]-1)*f_anim.size())+(f_sire[k]-1)] - (bi/2);
-            output[((f_dam[k]-1) *f_anim.size())+(f_anim[k]-1)] = output[((f_dam[k]-1) *f_anim.size())+(f_anim[k]-1)] - (bi/2);
-            output[((f_anim[k]-1)*f_anim.size())+ (f_dam[k]-1)] = output[((f_anim[k]-1)*f_anim.size())+ (f_dam[k]-1)] - (bi/2);
-            output[((f_sire[k]-1)*f_anim.size())+(f_sire[k]-1)] = output[((f_sire[k]-1)*f_anim.size())+(f_sire[k]-1)] + (bi/4);
-            output[((f_sire[k]-1)*f_anim.size())+ (f_dam[k]-1)] = output[((f_sire[k]-1)*f_anim.size())+ (f_dam[k]-1)] + (bi/4);
-            output[((f_dam[k]-1) *f_anim.size())+(f_sire[k]-1)] = output[((f_dam[k]-1) *f_anim.size())+(f_sire[k]-1)] + (bi/4);
-            output[((f_dam[k]-1) *f_anim.size())+ (f_dam[k]-1)] = output[((f_dam[k]-1) *f_anim.size())+ (f_dam[k]-1)] + (bi/4);
+            output[((f_anim[k-1]-1)*f_anim.size())+(f_anim[k-1]-1)] = output[((f_anim[k-1]-1)*f_anim.size())+(f_anim[k-1]-1)] + bi;
+            output[((f_sire[k-1]-1)*f_anim.size())+(f_anim[k-1]-1)] = output[((f_sire[k-1]-1)*f_anim.size())+(f_anim[k-1]-1)] - (bi/2);
+            output[((f_anim[k-1]-1)*f_anim.size())+(f_sire[k-1]-1)] = output[((f_anim[k-1]-1)*f_anim.size())+(f_sire[k-1]-1)] - (bi/2);
+            output[((f_dam[k-1]-1) *f_anim.size())+(f_anim[k-1]-1)] = output[((f_dam[k-1]-1) *f_anim.size())+(f_anim[k-1]-1)] - (bi/2);
+            output[((f_anim[k-1]-1)*f_anim.size())+ (f_dam[k-1]-1)] = output[((f_anim[k-1]-1)*f_anim.size())+ (f_dam[k-1]-1)] - (bi/2);
+            output[((f_sire[k-1]-1)*f_anim.size())+(f_sire[k-1]-1)] = output[((f_sire[k-1]-1)*f_anim.size())+(f_sire[k-1]-1)] + (bi/4);
+            output[((f_sire[k-1]-1)*f_anim.size())+ (f_dam[k-1]-1)] = output[((f_sire[k-1]-1)*f_anim.size())+ (f_dam[k-1]-1)] + (bi/4);
+            output[((f_dam[k-1]-1) *f_anim.size())+(f_sire[k-1]-1)] = output[((f_dam[k-1]-1) *f_anim.size())+(f_sire[k-1]-1)] + (bi/4);
+            output[((f_dam[k-1]-1) *f_anim.size())+ (f_dam[k-1]-1)] = output[((f_dam[k-1]-1) *f_anim.size())+ (f_dam[k-1]-1)] + (bi/4);
         }
-        if(f_sire[k] != 0 && f_dam[k] == 0)
+        if(f_sire[k-1] != 0 && f_dam[k-1] == 0)
         {
-            output[((f_anim[k]-1)*f_anim.size())+(f_anim[k]-1)] = output[((f_anim[k]-1)*f_anim.size())+(f_anim[k]-1)] + bi;
-            output[((f_sire[k]-1)*f_anim.size())+(f_anim[k]-1)] = output[((f_sire[k]-1)*f_anim.size())+(f_anim[k]-1)] - (bi/2);
-            output[((f_anim[k]-1)*f_anim.size())+(f_sire[k]-1)] = output[((f_anim[k]-1)*f_anim.size())+(f_sire[k]-1)] - (bi/2);
-            output[((f_sire[k]-1)*f_anim.size())+(f_sire[k]-1)] = output[((f_sire[k]-1)*f_anim.size())+(f_sire[k]-1)] + (bi/4);
+            output[((f_anim[k-1]-1)*f_anim.size())+(f_anim[k-1]-1)] = output[((f_anim[k-1]-1)*f_anim.size())+(f_anim[k-1]-1)] + bi;
+            output[((f_sire[k-1]-1)*f_anim.size())+(f_anim[k-1]-1)] = output[((f_sire[k-1]-1)*f_anim.size())+(f_anim[k-1]-1)] - (bi/2);
+            output[((f_anim[k-1]-1)*f_anim.size())+(f_sire[k-1]-1)] = output[((f_anim[k-1]-1)*f_anim.size())+(f_sire[k-1]-1)] - (bi/2);
+            output[((f_sire[k-1]-1)*f_anim.size())+(f_sire[k-1]-1)] = output[((f_sire[k-1]-1)*f_anim.size())+(f_sire[k-1]-1)] + (bi/4);
         }
-        if(f_sire[k] == 0 && f_dam[k] != 0)
+        if(f_sire[k-1] == 0 && f_dam[k-1] != 0)
         {
-            output[((f_anim[k]-1)*f_anim.size())+(f_anim[k]-1)] = output[((f_anim[k]-1)*f_anim.size())+(f_anim[k]-1)] + bi;
-            output[((f_dam[k]-1) *f_anim.size())+(f_anim[k]-1)] = output[((f_dam[k]-1) *f_anim.size())+(f_anim[k]-1)] - (bi/2);
-            output[((f_anim[k]-1)*f_anim.size())+ (f_dam[k]-1)] = output[((f_anim[k]-1)*f_anim.size())+ (f_dam[k]-1)] - (bi/2);
-            output[((f_dam[k]-1) *f_anim.size())+ (f_dam[k]-1)] = output[((f_dam[k]-1) *f_anim.size())+ (f_dam[k]-1)] + (bi/4);
+            output[((f_anim[k-1]-1)*f_anim.size())+(f_anim[k-1]-1)] = output[((f_anim[k-1]-1)*f_anim.size())+(f_anim[k-1]-1)] + bi;
+            output[((f_dam[k-1]-1) *f_anim.size())+(f_anim[k-1]-1)] = output[((f_dam[k-1]-1) *f_anim.size())+(f_anim[k-1]-1)] - (bi/2);
+            output[((f_anim[k-1]-1)*f_anim.size())+ (f_dam[k-1]-1)] = output[((f_anim[k-1]-1)*f_anim.size())+ (f_dam[k-1]-1)] - (bi/2);
+            output[((f_dam[k-1]-1) *f_anim.size())+ (f_dam[k-1]-1)] = output[((f_dam[k-1]-1) *f_anim.size())+ (f_dam[k-1]-1)] + (bi/4);
         }
-        if(f_sire[k] == 0 && f_dam[k] == 0)
+        if(f_sire[k-1] == 0 && f_dam[k-1] == 0)
         {
-            output[((f_anim[k]-1)*f_anim.size())+(f_anim[k]-1)] = output[((f_anim[k]-1)*f_anim.size())+(f_anim[k]-1)] + bi;
+            output[((f_anim[k-1]-1)*f_anim.size())+(f_anim[k-1]-1)] = output[((f_anim[k-1]-1)*f_anim.size())+(f_anim[k-1]-1)] + bi;
         }
     }
-    /* copy vector back to output_qs_u array */
-    for(int i = 0; i < f_anim.size(); i++){output_qs_u[i] = qs_u[i];}
+    /* copy vector back to output_ped array */
+    for(int i = 1; i < (f_anim.size()+1); i++){output_f[i-1] = F[i];}
 }
 ////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////
 /////////////////////////     FUNCTION 2       /////////////////////////
 ////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////
-/* Calculates inbreeding: pass animal sire and dam as a reference; output is qs_u */
-void pedigree_inbreeding(string phenotypefile, double* output_qs_u)
+/* Calculates inbreeding: pass animal sire and dam as a reference; output is output_f based on Meuwissen & Luo Algorithm*/
+void pedigree_inbreeding(string phenotypefile, double* output_f)
 {
-    vector < int > animal; vector < int > sire; vector < int > dam;
+    vector < int > animal;
+    vector < int > sire;
+    vector < int > dam;
     /*read in Pheno_Pedigree file and store in a vector to determine how many animals their are */
     string line;
     ifstream infile2;
     infile2.open(phenotypefile.c_str());                                                 /* This file has all animals in it */
-    if(infile2.fail()){cout << "Error Opening File\n";}
+    if(infile2.fail()){cout << "Error Opening Pedigree File\n";}
     while (getline(infile2,line))
     {
         /* Fill each array with correct number already in order so don't need to order */
@@ -106,35 +120,47 @@ void pedigree_inbreeding(string phenotypefile, double* output_qs_u)
         pos = line.find(" ",0); dam.push_back(stoi(line.substr(0,pos)));                                    /* Grab Dam ID */
     }
     int TotalAnimalNumber = animal.size();
-    vector < double > qs_u(TotalAnimalNumber,0);                                    /* 1 - u = are inbreeding coeffecients */
-    vector < double > qs_v(TotalAnimalNumber,0);                                    /* diagonal elements */
-    for(int k = 0; k < TotalAnimalNumber; k++)                                      /* Loop across animals */
+    vector < double > F((TotalAnimalNumber+1),0.0);
+    vector < double > D(TotalAnimalNumber,0.0);
+    /* This it makes so D calculate is correct */
+    F[0] = -1;
+    for(int k = animal[0]; k < (animal.size()+1); k++)                  /* iterate through each row of l */
     {
-        /* Part 1a of Quass */
-        if(sire[k] == 0 && dam[k] == 0){qs_v[k] = 1;}
-        if(sire[k] == 0 && dam[k] != 0){qs_v[k] = sqrt(1-0.25 * qs_u[((dam[k])-1)]);}
-        if(sire[k] != 0 && dam[k] == 0){qs_v[k] = sqrt(1-0.25 * qs_u[((sire[k])-1)]);}
-        if(sire[k] != 0 && dam[k] != 0){qs_v[k] = sqrt(1-0.25 * qs_u[((sire[k])-1)]-0.25*qs_u[((dam[k])-1)]);}
-        int Animal = k + 1;
-        /* Part 1b of Quass */
-        if(k < TotalAnimalNumber)
+        vector < double > L(TotalAnimalNumber,0.0);
+        vector < double > AN;                                       // Holds all ancestors of individuals
+        double ai = 0.0;                                            /* ai  is the inbreeding */
+        AN.push_back(k);                                            /* push back animal in ancestor */
+        L[k-1] = 1.0;
+        /* Calculate D */
+        D[k-1] = 0.5 - (0.25 * (F[sire[k-1]] + F[dam[k-1]]));
+        int j = k;                                          /* start off at K then go down */
+        while(AN.size() > 0)
         {
-            for(int i = (k+1); i < TotalAnimalNumber; i++)
+            /* if sire is know add to AN and add to L[j] */
+            if((sire[j-1]) != 0){AN.push_back(sire[j-1]); L[sire[j-1]-1] += 0.5 * L[j-1];}
+            /* if dam is known add to AN and add to L[j] */
+            if((dam[j-1]) != 0){AN.push_back(dam[j-1]); L[dam[j-1]-1] += 0.5 * L[j-1];}
+            /* add to inbreeding value */
+            ai += (L[j-1] * L[j-1] * D[j-1]);
+            /* Delete j from n */
+            int found = 0;
+            while(1)
             {
-                if(sire[i] >= Animal && dam[i] >= Animal){qs_v[i] = 0.5 * qs_v[((sire[i])-1)] + 0.5 * qs_v[((dam[i])-1)];}
-                if(sire[i] < Animal && dam[i]  >= Animal){qs_v[i] = 0.5 * qs_v[((dam[i])-1)];}
-                if(dam[i]  < Animal && sire[i] >= Animal){qs_v[i] = 0.5 * qs_v[((sire[i])-1)];}
-                if(sire[i] < Animal && dam[i]  < Animal) {qs_v[i] = 0;}
+                if(AN[found] == j){AN.erase(AN.begin()+found); break;}
+                if(AN[found] != j){found++;}
             }
-            /* Part 1c of Quass */
-            for(int l = k; l < TotalAnimalNumber; l++)
-            {
-                qs_u[l] = qs_u[l] + (qs_v[l] * qs_v[l]);
-            }
+            /* Find youngest animal in AN to see if it has ancestors*/
+            j = -1;
+            for(int i = 0; i < AN.size(); i++){if(AN[i] > j){j = AN[i];}}
+            /* Erase Duplicates */
+            sort(AN.begin(),AN.end());
+            AN.erase(unique(AN.begin(),AN.end()),AN.end());
         }
+        /* calculate inbreeding value */
+        F[k] = ai - 1;
     }
     /* copy vector back to output_qs_u array */
-    for(int i = 0; i < animal.size(); i++){output_qs_u[i] = qs_u[i];}
+    for(int i = 1; i < (animal.size()+1); i++){output_f[i-1] = F[i];}
 }
 ////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////
@@ -357,7 +383,7 @@ void grm_noprevgrm(double* input_m, vector < string > const &genotypes, double* 
 /////////////////////////     FUNCTION 6       /////////////////////////
 ////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////
-/* Generate Genomic Relationship Matrix (GRM) without any prior GRM matrix calculation  */
+/* Generate Genomic Relationship Matrix (GRM) with prior GRM matrix calculation  */
 void grm_prevgrm(double* input_m, string genofile, vector < string > const &newgenotypes, double* output_grm12, double* output_grm22, float scaler,vector < int > &animalvector, vector < double > &phenotypevector)
 {
     /* First create Z for only new individuals that can be used for old-new and new-new */
@@ -605,7 +631,7 @@ void generatesummaryqtl(string inputfilehap, string inputfileqtl, string outputf
 ////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////
 /* Generate dataframe Summary Statistics */
-void generatessummarydf(string inputfilehap, string outputfile, int generations)
+void generatessummarydf(string inputfilehap, string outputfile, int generations, vector < double > const &tempexphet)
 {
     vector < double > generationcount(generations,0);
     vector < double > generationvalues;
@@ -771,7 +797,7 @@ void generatessummarydf(string inputfilehap, string outputfile, int generations)
         std::ofstream output(outfileinbreeding, std::ios_base::app | std::ios_base::out);
         if(i == 0)
         {
-            output << "Generation ped_f gen_f h1_f h2_f h3_f homozy fitness homozlethal hetezlethal homozysublethal hetezsublethal lethalequiv" << endl;
+            output << "Generation ped_f gen_f h1_f h2_f h3_f homozy ExpHet fitness homozlethal hetezlethal homozysublethal hetezsublethal lethalequiv" << endl;
         }
         output << i << " ";
         output << setprecision(4) << pedigreefmean[i] << "(" << pedigreefsd[i] << ") ";
@@ -780,6 +806,7 @@ void generatessummarydf(string inputfilehap, string outputfile, int generations)
         output << setprecision(4) << h2fmean[i] << "(" << h2fsd[i] << ") ";
         output << setprecision(4) << h3fmean[i] << "(" << h3fsd[i] << ") ";
         output << setprecision(4) << homozygomean[i] << "(" << homozygosd[i] << ") ";
+        output << setprecision(4) << tempexphet[i] << " ";       
         output << setprecision(4) << fitnessmean[i] << "(" << fitnesssd[i] << ") ";
         output << setprecision(4) << homolethalmean[i] << "(" << homolethalsd[i] << ") ";
         output << setprecision(4) << hetelethalmean[i] << "(" << hetelethalsd[i] << ") ";
@@ -924,6 +951,83 @@ void direct_solver(double* lhs, double* rhs, double* solutions, int dimen)
     const long long int onesize = 1;
     cblas_dgemm(CblasRowMajor,CblasNoTrans,CblasNoTrans,lhssize,onesize,lhssize,1.0,lhs,lhssize,rhs,onesize,0.0,solutions,onesize);
 }
+////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////
+/////////////////////////     FUNCTION 11      /////////////////////////
+////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////
+/* Calculates subset of a relationship matrix */
+void pedigree_relationship(string phenotypefile, vector <int> const &parent_id, double* output_subrelationship)
+{
+    vector < int > animal; vector < int > sire; vector < int > dam;
+    /*read in Pheno_Pedigree file and store in a vector to determine how many animals their are */
+    string line;
+    ifstream infile2;
+    infile2.open(phenotypefile.c_str());                                                 /* This file has all animals in it */
+    if(infile2.fail()){cout << "Error Opening Pedigree File\n";}
+    while (getline(infile2,line))
+    {
+        /* Fill each array with correct number already in order so don't need to order */
+        size_t pos = line.find(" ",0); animal.push_back(stoi(line.substr(0,pos))); line.erase(0, pos + 1);  /* Grab Animal ID */
+        pos = line.find(" ",0); sire.push_back(stoi(line.substr(0,pos))); line.erase(0, pos + 1);           /* Grab Sire ID */
+        pos = line.find(" ",0); dam.push_back(stoi(line.substr(0,pos)));                                    /* Grab Dam ID */
+    }
+    int TotalAnimalNumber = animal.size();
+    double* parent_A = new double[TotalAnimalNumber * TotalAnimalNumber];            /* Full A matrix */
+    unsigned long i_p, j_p;
+    #pragma omp parallel for private(j_p)
+    for(i_p = 0; i_p < animal.size(); i_p++)
+    {
+        for(j_p = 0; j_p < animal.size(); j_p++){parent_A[(i_p*TotalAnimalNumber)+j_p] = 0.0;}
+    }
+    /* Generate relationship of whole group */
+    for(int i = 0; i < animal.size(); i++)
+    {
+        if (sire[i] != 0 && dam[i] != 0)
+        {
+            for (int j = 0; j < i; j++)
+            {
+                parent_A[(i*TotalAnimalNumber)+j] = 0.5 * (parent_A[(j*TotalAnimalNumber)+(sire[i]-1)] + parent_A[(j*TotalAnimalNumber)+(dam[i]-1)]);
+                parent_A[(j*TotalAnimalNumber)+i] = 0.5 * (parent_A[(j*TotalAnimalNumber)+(sire[i]-1)] + parent_A[(j*TotalAnimalNumber)+(dam[i]-1)]);
+            }
+            parent_A[((animal[i]-1)*TotalAnimalNumber)+(animal[i]-1)] = 1 + (0.5 * parent_A[((sire[i]-1)*TotalAnimalNumber)+(dam[i]-1)]);
+        }
+        if (sire[i] != 0 && dam[i] == 0)
+        {
+            for (int j = 0; j < i; j++)
+            {
+                parent_A[(j*TotalAnimalNumber)+i] = 0.5 * (parent_A[(j*TotalAnimalNumber)+(sire[i]-1)]);
+                parent_A[(i*TotalAnimalNumber)+j] = 0.5 * (parent_A[(j*TotalAnimalNumber)+(sire[i]-1)]);
+            }
+            parent_A[((animal[i]-1)*TotalAnimalNumber)+(animal[i]-1)] = 1;
+        }
+        if (sire[i] == 0 && dam[i] != 0)
+        {
+            for (int j = 0; j < i; j++)
+            {
+                parent_A[(j*TotalAnimalNumber)+i] = 0.5 * (parent_A[(j*TotalAnimalNumber)+(dam[i]-1)]);
+                parent_A[(i*TotalAnimalNumber)+j] = 0.5 * (parent_A[(j*TotalAnimalNumber)+(dam[i]-1)]);
+            }
+            parent_A[((animal[i]-1)*TotalAnimalNumber)+(animal[i]-1)] = 1;
+        }
+        if (sire[i] == 0 && dam[i] == 0){parent_A[((animal[i]-1)*TotalAnimalNumber)+(animal[i]-1)] = 1;}
+    }
+    /* Full Created now fill subset */
+    for(int i = 0; i < parent_id.size(); i++)
+    {
+        for(int j = i; j < parent_id.size(); j++)
+        {
+            if(i == j){output_subrelationship[(i*parent_id.size()) + j] = parent_A[((parent_id[i]-1)*TotalAnimalNumber) + (parent_id[j]-1)];}
+            if(i != j)
+            {
+                output_subrelationship[(i*parent_id.size())+ j] = parent_A[((parent_id[i]-1)*TotalAnimalNumber) + (parent_id[j]-1)];
+                output_subrelationship[(j*parent_id.size())+ i] = parent_A[((parent_id[i]-1)*TotalAnimalNumber) + (parent_id[j]-1)];
+            }
+        }
+    }
+    delete [] parent_A;   
+}
+
 
 
 
