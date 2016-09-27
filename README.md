@@ -1,4 +1,4 @@
-# Geno_Diver_V1
+# Geno-Diver
 Geno-Diver is a complex animal genetic simulation tool that is able to simulate quantitative and/or fitness characters. 
 It utilizes Intel MKL and Eigen libraries to perform matrix multiplication and is multi-threaded.
 
