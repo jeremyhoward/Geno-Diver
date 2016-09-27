@@ -9,12 +9,17 @@ Linux Executable Files:
 - msformatter
 - GenoDiver
 
-Information Files:
-- National Meeting Presentation.pdf
+Helper Files:
+- Geno-Diver Manual
+- NationalMeetingPresentation.pdf
 - Replicate_Script.sh
 - Batch_Script.sh
-- minimal_paramter_file.txt
-
+- complete_parameter_file.txt
+- minimal_parameter_file.txt
+- Example1.txt
+- Example2.txt
+- Example3.txt
+- Example4.sh
 
 Source Code Files:
 - Animal.h
@@ -22,7 +27,6 @@ Source Code Files:
 - PopulationSimulator.cpp
 - Simulation_Functions.cpp
 - makefile
-- How_to_Compile.txt
 
 If there are any questions or comments please contact me at "jthoward@ncsu.edu".
 
