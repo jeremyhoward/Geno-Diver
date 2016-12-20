@@ -4,7 +4,7 @@
 # Supported platforms: Unix/Linux
 #-----------------------------------#
 # Director of the target
-OUTPUT = GenoDriver
+OUTPUT = GenoDiver
 
 # Compiler
 CXX = g++
