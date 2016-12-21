@@ -889,7 +889,7 @@ int main(int argc, char* argv[])
         search++;
         if(search >= parm.size())
         {
-            if(numFitnessQTLlethal == 0 && numFitnessQTLsublethal == 0){fnd_haplo = 2*(2*(DAMS+50)); break;} /* None will die so don't need as much */
+            if(numFitnessQTLlethal == 0 && numFitnessQTLsublethal == 0){fnd_haplo = 2*(2*(DAMS+150)); break;} /* None will die so don't need as much */
             if(numFitnessQTLlethal != 0 || numFitnessQTLsublethal != 0){fnd_haplo = 2*(2*(DAMS+300)); break;} /* Some will die so need more */
         }
     }
@@ -897,7 +897,7 @@ int main(int argc, char* argv[])
     stringstream s1founderhap; s1founderhap << FounderHaplotypes; string s1founderhaptemp = s1founderhap.str();
     founderhaplostring = "        - Founder Haplotypes:\t\t\t\t\t\t\t\t\t\t'" + s1founderhaptemp + "'\n";
     int numberfoundersa;
-    if(numFitnessQTLlethal == 0 && numFitnessQTLsublethal == 0){numberfoundersa = 2*(DAMS+50);}     /* None will die so don't need as much */
+    if(numFitnessQTLlethal == 0 && numFitnessQTLsublethal == 0){numberfoundersa = 2*(DAMS+150);}     /* None will die so don't need as much */
     if(numFitnessQTLlethal != 0 || numFitnessQTLsublethal != 0){numberfoundersa = 2*(DAMS+300);}    /* Some will die so need more */
     if(numberfoundersa > (FounderHaplotypes/2))
     {
