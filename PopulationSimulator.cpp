@@ -889,7 +889,7 @@ int main(int argc, char* argv[])
         search++;
         if(search >= parm.size())
         {
-            if(numFitnessQTLlethal == 0 && numFitnessQTLsublethal == 0){fnd_haplo = 2*(2*(DAMS+150)); break;} /* None will die so don't need as much */
+            if(numFitnessQTLlethal == 0 && numFitnessQTLsublethal == 0){fnd_haplo = 2*(2*(DAMS+50)); break;} /* None will die so don't need as much */
             if(numFitnessQTLlethal != 0 || numFitnessQTLsublethal != 0){fnd_haplo = 2*(2*(DAMS+300)); break;} /* Some will die so need more */
         }
     }
@@ -897,7 +897,7 @@ int main(int argc, char* argv[])
     stringstream s1founderhap; s1founderhap << FounderHaplotypes; string s1founderhaptemp = s1founderhap.str();
     founderhaplostring = "        - Founder Haplotypes:\t\t\t\t\t\t\t\t\t\t'" + s1founderhaptemp + "'\n";
     int numberfoundersa;
-    if(numFitnessQTLlethal == 0 && numFitnessQTLsublethal == 0){numberfoundersa = 2*(DAMS+150);}     /* None will die so don't need as much */
+    if(numFitnessQTLlethal == 0 && numFitnessQTLsublethal == 0){numberfoundersa = 2*(DAMS+50);}     /* None will die so don't need as much */
     if(numFitnessQTLlethal != 0 || numFitnessQTLsublethal != 0){numberfoundersa = 2*(DAMS+300);}    /* Some will die so need more */
     if(numberfoundersa > (FounderHaplotypes/2))
     {
@@ -1337,7 +1337,13 @@ int main(int argc, char* argv[])
                         string part1 = "./macs "; string part2 = " "; string part3 = " -t "; string part4 = " -r "; string part5 = " -s ";
                         string part6 = " -eN 0.18 0.71 -eN 0.36 1.43 -eN 0.54 2.14 -eN 0.71 2.86 -eN 0.89 3.57 -eN 1.07 4.29 -eN 1.25 5.00 -eN 1.43 5.71";
                         string part7 = " -h 1e2 2>debug.txt | ./msformatter > file1.txt";
-                        string command = part1+foundhap+part2+SizeChr+part3+scalmut+part4+scalrec+part5+macsseed+part6+part7; system(command.c_str());
+                        string command = part1+foundhap+part2+SizeChr+part3+scalmut+part4+scalrec+part5+macsseed+part6+part7;
+                        if(i == 0)
+                        {
+                            logfile << "    - Line used to call MaCS: " << endl;
+                            logfile << "    " << command << endl;
+                        }
+                        system(command.c_str());
                         system("rm haplo* tree.* debug.txt");
                         /* Part 2 put into right format */
                         system("tail --lines +6 file1.txt > Intermediate.txt");
@@ -1379,6 +1385,11 @@ int main(int argc, char* argv[])
                         string part6c = "-eN 200.00 100.0 -eN 250.00 120.0 -eN 500.00 200.0 -eN 1000.00 400.0 -eN 1500.00 600.0 -eN 2000.00 800.0 -eN 2500.00 1000.0";
                         string part7 = " -h 1e2 2>debug.txt | ./msformatter > file1.txt";
                         string command = part1+foundhap+part2+SizeChr+part3+scalmut+part4+scalrec+part5+macsseed+part6+part6a+part6b+part6c+part7;
+                        if(i == 0)
+                        {
+                            logfile << "    - Line used to call MaCS: " << endl;
+                            logfile << "    " << command << endl;
+                        }
                         system(command.c_str());
                         system("rm haplo* tree.* debug.txt");
                         /* Part 2 put into right format */
@@ -1420,6 +1431,11 @@ int main(int argc, char* argv[])
                         string part6b = "-eN 375.00 6000.0 -eN 400.00 7000.0 -eN 425.00 8000.0 -eN 450.00 9000.0 -eN 475.00 10000.0";
                         string part7 = " -h 1e2 2>debug.txt | ./msformatter > file1.txt";
                         string command = part1+foundhap+part2+SizeChr+part3+scalmut+part4+scalrec+part5+macsseed+part6+part6a+part6b+part7;
+                        if(i == 0)
+                        {
+                            logfile << "    - Line used to call MaCS: " << endl;
+                            logfile << "    " << command << endl;
+                        }
                         system(command.c_str());
                         system("rm haplo* tree.* debug.txt");
                         /* Part 2 put into right format */
@@ -1462,6 +1478,11 @@ int main(int argc, char* argv[])
                         string part6c = "-eN 40 32 -eN 60 36 -eN 80 40 -eN 100 48 -eN 200 80 -eN 400 160 -eN 600 240 -eN 800 320 -eN 1000 400";
                         string part7 = " -h 1e2 2>debug.txt | ./msformatter > file1.txt";
                         string command = part1+foundhap+part2+SizeChr+part3+scalmut+part4+scalrec+part5+macsseed+part6+part6a+part6b+part6c+part7;
+                        if(i == 0)
+                        {
+                            logfile << "    - Line used to call MaCS: " << endl;
+                            logfile << "    " << command << endl;
+                        }
                         system(command.c_str());
                         system("rm haplo* tree.* debug.txt");
                         /* Part 2 put into right format */
@@ -1502,7 +1523,13 @@ int main(int argc, char* argv[])
                         string part6a = "-eN 2.50 4.50 -eN 5.00 5.46 -eN 10.00 7.37 -eN 15.00 9.28 -eN 20.00 11.19 -eN 25.00 13.10 -eN 50.00 22.66 ";
                         string part6b = "-eN 100.00 41.77 -eN 150.00 60.89 -eN 200.00 80.00";
                         string part7 = " -h 1e2 2>debug.txt | ./msformatter > file1.txt";
-                        string command = part1+foundhap+part2+SizeChr+part3+scalmut+part4+scalrec+part5+macsseed+part6+part6a+part6b+part7; system(command.c_str());
+                        string command = part1+foundhap+part2+SizeChr+part3+scalmut+part4+scalrec+part5+macsseed+part6+part6a+part6b+part7;
+                        if(i == 0)
+                        {
+                            logfile << "    - Line used to call MaCS: " << endl;
+                            logfile << "    " << command << endl;
+                        }
+                        system(command.c_str());
                         system("rm haplo* tree.* debug.txt");
                         /* Part 2 put into right format */
                         system("tail --lines +6 file1.txt > Intermediate.txt"); part1 = "tail --lines +2 Intermediate.txt > ";
@@ -1540,7 +1567,13 @@ int main(int argc, char* argv[])
                     /* Part 1 run the macs simulation program and output it into ms form */
                     string part1 = "./macs "; string part2 = " "; string part3 = " -t "; string part4 = " -r "; string part5 = " -s ";
                     string part6 = " -h 1e3 2>debug.txt | ./msformatter > file1.txt";
-                    string command = part1+foundhap+part2+SizeChr+part3+scalmut+part4+scalrec+part5+macsseed+part6; system(command.c_str());
+                    string command = part1+foundhap+part2+SizeChr+part3+scalmut+part4+scalrec+part5+macsseed+part6;
+                    if(i == 0)
+                    {
+                        logfile << "    - Line used to call MaCS: " << endl;
+                        logfile << "    " << command << endl;
+                    }
+                    system(command.c_str());
                     system("rm haplo* tree.* debug.txt");
                     /* Part 2 put into right format */
                     system("tail --lines +6 file1.txt > Intermediate.txt");
