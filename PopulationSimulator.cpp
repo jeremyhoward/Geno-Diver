@@ -2896,9 +2896,6 @@ int main(int argc, char* argv[])
                 if(Gen > 1){TotalOldAnimalNumber = TotalAnimalNumber;}                              /* Size of old animal matrix */
                 logfile << "------ Begin Generation " << Gen << " -------- " << endl;
                 time_t start_block = time(0); time_t start; time_t end;
-                
-
-                
                 /* Output animals that are of age 1 into pheno_pedigree and Pheno_Gmatrix to use for relationships */
                 /* That way when you read them back in to create relationship matrix don't need to order them */
                 /* Save as a continuous string and then output */
