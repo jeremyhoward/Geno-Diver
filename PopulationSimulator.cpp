@@ -2896,6 +2896,9 @@ int main(int argc, char* argv[])
                 if(Gen > 1){TotalOldAnimalNumber = TotalAnimalNumber;}                              /* Size of old animal matrix */
                 logfile << "------ Begin Generation " << Gen << " -------- " << endl;
                 time_t start_block = time(0); time_t start; time_t end;
+                
+
+                
                 /* Output animals that are of age 1 into pheno_pedigree and Pheno_Gmatrix to use for relationships */
                 /* That way when you read them back in to create relationship matrix don't need to order them */
                 /* Save as a continuous string and then output */
@@ -2912,21 +2915,19 @@ int main(int argc, char* argv[])
                         outputstringgenomic << population[i].getPatHapl() << " " << population[i].getMatHapl() <<endl; outputnumpedgen++;
                         TotalAnimalNumber++;                                /* to keep track of number of animals */
                     }
-                    if(outputnumpedgen % 1000 == 0)
+                    if(outputnumpedgen % 100 == 0)
                     {
-                        /* output pheno pedigree file */
-                        std::ofstream output1(Pheno_Pedigree_File, std::ios_base::app | std::ios_base::out);
-                        output1 << outputstringpedigree.str(); outputstringpedigree.str(""); outputstringpedigree.clear();
+                        /* Don't need to worry about pedigree file getting big */
                         /* output pheno genomic file */
-                        std::ofstream output2(Pheno_GMatrix_File, std::ios_base::app | std::ios_base::out);
+                        std::ofstream output2(Pheno_GMatrix_File.c_str(), std::ios_base::app | std::ios_base::out);
                         output2 << outputstringgenomic.str(); outputstringgenomic.str(""); outputstringgenomic.clear();
                     }
                 }
                 /* output pheno pedigree file */
-                std::ofstream output1(Pheno_Pedigree_File, std::ios_base::app | std::ios_base::out);
+                std::ofstream output1(Pheno_Pedigree_File.c_str(), std::ios_base::app | std::ios_base::out);
                 output1 << outputstringpedigree.str(); outputstringpedigree.str(""); outputstringpedigree.clear();
                 /* output pheno genomic file */
-                std::ofstream output2(Pheno_GMatrix_File, std::ios_base::app | std::ios_base::out);
+                std::ofstream output2(Pheno_GMatrix_File.c_str(), std::ios_base::app | std::ios_base::out);
                 output2 << outputstringgenomic.str(); outputstringgenomic.str(""); outputstringgenomic.clear();
                 /* Get ID for last animal; Start ID represent the first ID that will be used for first new animal */
                 int StartID = population.size();
