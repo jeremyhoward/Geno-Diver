@@ -1,11 +1,12 @@
-// Animal Class
-
 #ifndef Animal_H_
 #define Animal_H_
 #include <string>
 #include <vector>
-
-// Animal: class that holds information regarding a particular animal
+/************************************************************************/
+/************************************************************************/
+/* Animal: class that holds information regarding a particular animal   */
+/************************************************************************/
+/************************************************************************/
 class Animal
 {
 private:
@@ -44,11 +45,12 @@ private:
     std::string PaternalHapl;       /* Paternal Haplotype i.e. 0_40_20 */
     std::string MaternalHapl;       /* Maternal Haplotype i.e. 2_40_20 */
     std::string Pedigree_3_Gen;     /* 3 Generation Pedigree: sire_dam_MGS_MGD_PGS_PGD */
-
+    double propROH;                 /* If ROH function called will do proportion of genome in given ROH cutoff for each individual */
+    std::string GenoStatus;         /* Is animal genotyped and if so what density (Full or Reduced) */
 public:
     // constructors to create object within class
     Animal();
-    Animal(int id = 0, int sire = 0, int dam = 0, int sex = 0, int generation = 0, int age = 0, int progeny = 0, int matings = 0, int dead = 0, double rndsel = 0.0, double rndcul = 0.0, double pedf = 0.0, double genf = 0.0, double hap1f = 0.0, double hap2f = 0.0, double hap3f = 0.0, int unfavhomoleth = 0, int unfavheterleth = 0, int unfavhomosublet = 0, int unfavhetersublet = 0, double lethalequiv = 0.0, double homozy = 0.0, double ebv = 0.0, double acc = 0.0, double pheno = 0.0, double fit = 0.0, double gv = 0.0, double bv = 0.0, double dd = 0.0, double res = 0.0, std::string mark = "0" , std::string qtl = "0", std::string pathap = "0", std::string mathap = "0", std::string ped3g = "");
+    Animal(int id = 0, int sire = 0, int dam = 0, int sex = 0, int generation = 0, int age = 0, int progeny = 0, int matings = 0, int dead = 0, double rndsel = 0.0, double rndcul = 0.0, double pedf = 0.0, double genf = 0.0, double hap1f = 0.0, double hap2f = 0.0, double hap3f = 0.0, int unfavhomoleth = 0, int unfavheterleth = 0, int unfavhomosublet = 0, int unfavhetersublet = 0, double lethalequiv = 0.0, double homozy = 0.0, double ebv = 0.0, double acc = 0.0, double pheno = 0.0, double fit = 0.0, double gv = 0.0, double bv = 0.0, double dd = 0.0, double res = 0.0, std::string mark = "0" , std::string qtl = "0", std::string pathap = "0", std::string mathap = "0", std::string ped3g = "",double proproh = 0, std::string genostatus = "No");
     // destructor
     ~Animal();
     // Start of functions
@@ -74,6 +76,8 @@ public:
     void StandardizeH2(double temp);                                /* Standardized by number of haplotypes */
     void StandardizeH3(double temp);                                /* Standardized by number of haplotypes */
     void Update3GenPed(std::string temp);                           /* Update 3 Generation Pedigree */
+    void UpdatepropROH(double temp);                                /* Update proportion in ROH */
+    void UpdateGenoStatus(std::string temp);                        /* Update whether animal is genotyped */
     int getID(){return ID;}
     int getSire(){return Sire;}
     int getDam(){return Dam;}
@@ -109,9 +113,15 @@ public:
     std::string getPatHapl(){return PaternalHapl;}
     std::string getMatHapl(){return MaternalHapl;}
     std::string getPed3G(){return Pedigree_3_Gen;}
+    double getpropROH(){return propROH;}
+    std::string getGenoStatus(){return GenoStatus;}
 };
 
-// QTL_new_old: information regarding the QTL across generations
+/************************************************************************/
+/************************************************************************/
+/*    QTL_new_old: information regarding the QTL across generations     */
+/************************************************************************/
+/************************************************************************/
 class QTL_new_old
 {
 private:
@@ -121,22 +131,31 @@ private:
     std::string Type;           /* Whether it is a fitness or quantitative qtl */
     int GenOccured;             /* Which Generated in originated */
     std::string Freq;           /* Frequency for a given Generation (i.e. 0.2_0.19_0.24_etc..) */
+    std::string LDDecay;        /* LD decay for a given generation */
 public:
     // constructors to create object within class
     QTL_new_old();
-    QTL_new_old(double location = 0.0, double add = 0.0, double dom = 0.0, std::string type = "0", int genOccured = 99, std::string freq = "0");
+    QTL_new_old(double location = 0.0, double add = 0.0, double dom = 0.0, std::string type = "0", int genOccured = 99, std::string freq = "0",std::string lddec = "");
     // destructor
     ~QTL_new_old();
     // Start of functions
     void UpdateFreq(std::string currentFreq);                       /* Function to update the current generation QTL freq */
+    void UpdateLDDecay(std::string currentLDDecaya);                 /* Function to update the current generation LD decay */
+    void FounderLDDecay(std::string currentLDDecay);                /* Function to update the founder generation LD decay */
     double getLocation(){return Location;}
     double getAdditiveEffect(){return AdditiveEffect;}
     double getDominanceEffect(){return DominanceEffect;}
     std::string getType(){return Type;}
     int getGenOccured(){return GenOccured;}
     std::string getFreq(){return Freq;}
+    std::string getLDDecay(){return LDDecay;}
 };
 
+/************************************************************************/
+/************************************************************************/
+/*    hapLibrary: information regarding the haplotype across generations     */
+/************************************************************************/
+/************************************************************************/
 class hapLibrary
 {
 private:
