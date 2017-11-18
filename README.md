@@ -9,7 +9,7 @@ The user manual and website contain all the necessary information to run and gen
 Linux Executable Files:
 - macs
 - msformatter
-- GenoDiver
+- GenoDiver (e-mail jthoward@ncsu.edu for the executable (Too large to fit on github)
 
 Source Code Files:
 - ParameterClass.cpp
