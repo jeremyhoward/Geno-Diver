@@ -15,10 +15,14 @@
 #include <math.h>
 #include <Eigen/Dense>
 #include <Eigen/Sparse>
-#include<Eigen/SparseCholesky>
+#include <Eigen/SparseCholesky>
 #include <Eigen/Core>
 #include <Eigen/LU>
 #include <mkl.h>
+#include "Animal.h"
+#include "ParameterClass.h"
+#include "OutputFiles.h"
+
 
 /* Function to create Beta Distribution. Random library does not produce it; stems from a gamma. */
 namespace sftrabbit
@@ -122,18 +126,14 @@ namespace sftrabbit
     }
 }
 
-
-#include "Animal.h"
-#include "ParameterClass.h"
-
 using namespace std;
 /******************************/
 /*     Catch All Functions    */
 /******************************/
 void updateinbreeding(vector <Animal> &population,vector <int> &animal, vector <double> &pedigreeinb);
-double proportiongenotyped(parameters &SimParameters,string GenotypeStatus_path);
-void update_animgreat(parameters &SimParameters,vector <Animal> &population, vector <int> &trainanimals,string Pheno_Pedigree_File,int Gen);
-void Inbreeding_Pedigree(vector <Animal> &population,string Pheno_Pedigree_File);
+double proportiongenotyped(parameters &SimParameters,outputfiles &OUTPUTFILES);
+void update_animgreat(parameters &SimParameters,vector <Animal> &population, vector <int> &trainanimals,outputfiles &OUTPUTFILES,int Gen);
+void Inbreeding_Pedigree(vector <Animal> &population,outputfiles &OUTPUTFILES);
 void MatrixStats(vector <double> &summarystats, double* output_subrelationship, int dimen,ostream& logfileloc);
 void MatrixCorrStats(vector <double> &summarystats, double* _grm_mkl, double* A22relationship, int dimen,ostream& logfileloc);
 void frequency_calc(vector < string > const &genotypes, double* output_freq);
@@ -142,34 +142,35 @@ float update_M_scale_Hinverse(parameters &SimParameters, vector <string> &genoty
 /******************************/
 /*     Set up Blup MME        */
 /******************************/
-void Setup_blup(parameters &SimParameters,vector <Animal> &population,vector < tuple <int,int,double> > &sprelationshipinv,vector <double> &Phenotype,vector <int> &animal,double scalinglambda,vector <double> &estimatedsolutions, vector <double> &trueaccuracy,ostream& logfileloc);
-void phenotypestatus(parameters &SimParameters,vector <Animal> &population,vector <int> &animal, vector <int> &hasphenotype);
+void Setup_blup(parameters &SimParameters,vector <Animal> &population,vector < tuple <int,int,double> > &sprelationshipinv,vector <double> &Phenotype,vector <int> &animal,double scalinglambda,vector <double> &estimatedsolutions, vector <double> &trueaccuracy,ostream& logfileloc,outputfiles &OUTPUTFILES);
+void phenotypestatus(parameters &SimParameters,vector <Animal> &population,vector <int> &animal, vector < vector < int >> &hasphenotype);
 
 /******************************/
 /* Generate Inverse Functions */
 /******************************/
 /* gblup type matrices */
-void newgenomicrecursion(parameters &SimParameters, int relationshipsize, string BinaryG_Matrix_File,string Binarym_Matrix_File, string Binaryp_Matrix_File, string BinaryGinv_Matrix_File,vector < tuple<int,int,double> > &sprelationshipinv,ostream& logfileloc,vector <int> &animal);
-void updategenomicrecursion(int TotalAnimalNumber, int TotalOldAnimalNumber, string BinaryG_Matrix_File,string Binarym_Matrix_File, string Binaryp_Matrix_File, string BinaryGinv_Matrix_File,vector <tuple<int,int,double> > &sprelationshipinv,ostream& logfileloc,vector <int> &animal);
-void newgenomiccholesky(parameters &SimParameters, int relationshipsize, string BinaryG_Matrix_File,string BinaryLinv_Matrix_File, string BinaryGinv_Matrix_File, vector < tuple<int,int,double> > &sprelationshipinv,ostream& logfileloc,vector <int> &animal);
-void updategenomiccholesky(int TotalAnimalNumber, int TotalOldAnimalNumber, string BinaryG_Matrix_File,string BinaryLinv_Matrix_File, string BinaryGinv_Matrix_File, vector < tuple<int,int,double> > &sprelationshipinv,ostream& logfileloc,vector <int> &animal);
-/* h-inverse type matrices */
-void H_inverse_function(parameters &SimParameters, vector <Animal> &population,string Pheno_Pedigree_File,string Pheno_GMatrix_File,string GenotypeStatus_path, vector <int> &animal, vector <double> &Phenotype, vector <int> trainanimals, vector < tuple<int,int,double> > &sprelationshipinv, ostream& logfileloc);
+void newgenomicrecursion(parameters &SimParameters, int relationshipsize,vector < tuple<int,int,double> > &sprelationshipinv,vector <int> &animal,outputfiles &OUTPUTFILES,ostream& logfileloc);
+void updategenomicrecursion(int TotalAnimalNumber, int TotalOldAnimalNumber,vector <tuple<int,int,double> > &sprelationshipinv,vector <int> &animal,outputfiles &OUTPUTFILES,ostream& logfileloc);
+void newgenomiccholesky(parameters &SimParameters, int relationshipsize,vector < tuple<int,int,double> > &sprelationshipinv,vector <int> &animal,outputfiles &OUTPUTFILES,ostream& logfileloc);
+void updategenomiccholesky(int TotalAnimalNumber, int TotalOldAnimalNumber,vector < tuple<int,int,double> > &sprelationshipinv,vector <int> &animal,outputfiles &OUTPUTFILES,ostream& logfileloc);
 /* pedigree type matrices */
-void Setup_SpmeuwissenluoAinv(string Pheno_Pedigree_File, vector <int> &animal, vector <double> &Phenotype,  vector <int> &trainanimals,vector < tuple <int,int,double> > &sprelationshipinv,vector <double> &pedigreeinb, ostream& logfileloc);
+void Setup_SpmeuwissenluoAinv(vector <int> &animal, vector <double> &Phenotype, vector <int> &trainanimals,vector < tuple <int,int,double> > &sprelationshipinv,vector <double> &pedigreeinb,outputfiles &OUTPUTFILES, ostream& logfileloc);
 void Meuwissen_Luo_Ainv_Sparse(vector <int> &animal,vector <int> &sire,vector <int> &dam,vector <tuple<int,int,double>> &sprelationshipinv,vector <double> &pedinbreeding);
 void DirectInverse(double* relationship, int dimension);
+void Gauss_Jordan_Inverse(vector<vector<double> > &Matrix);
+/* h-inverse type matrices */
+void H_inverse_function(parameters &SimParameters, vector <Animal> &population,vector <int> &animal, vector <double> &Phenotype, vector <int> trainanimals, vector < tuple<int,int,double> > &sprelationshipinv,outputfiles &OUTPUTFILES ,ostream& logfileloc);
 
 /***********************************/
 /* Generate Relationship Functions */
 /***********************************/
 /* haplotype type matrices */
-void newhaplotyperelationship(parameters &SimParameters,vector <Animal> &population, vector < hapLibrary > &haplib, string Pheno_GMatrix_File, vector <int> &animal, vector <double> &Phenotype, vector <int> trainanimals, string BinaryG_Matrix_File, ostream& logfileloc);
-void updatehaplotyperelationship(parameters &SimParameters,vector <Animal> &population, vector < hapLibrary > &haplib, string Pheno_GMatrix_File, vector <int> &animal, vector <double> &Phenotype,string BinaryG_Matrix_File,int TotalOldAnimalNumber,int TotalAnimalNumber,ostream& logfileloc);
+void newhaplotyperelationship(parameters &SimParameters,vector <Animal> &population, vector < hapLibrary > &haplib,vector <int> &animal, vector <double> &Phenotype, vector <int> trainanimals,outputfiles &OUTPUTFILES,ostream& logfileloc);
+void updatehaplotyperelationship(parameters &SimParameters,vector <Animal> &population, vector < hapLibrary > &haplib,vector <int> &animal, vector <double> &Phenotype,int TotalOldAnimalNumber,int TotalAnimalNumber,outputfiles &OUTPUTFILES,ostream& logfileloc);
 /* gblup type matrices */
 void VanRaden_grm(double* input_m, vector < string > const &genotypes, double* output_grm, float scaler);
-void newgenomicrelationship(parameters &SimParameters, vector <Animal> &population, string Pheno_GMatrix_File,vector <int> &animal, vector <double> &Phenotype, double* M, float scale, vector <int> trainanimals, string BinaryG_Matrix_File, ostream& logfileloc);
-void updategenomicrelationship(parameters &SimParameters, vector <Animal> &population, string Pheno_GMatrix_File,vector <int> &animal, vector <double> &Phenotype, double* M, float scale, string BinaryG_Matrix_File,int TotalOldAnimalNumber,int TotalAnimalNumber, ostream& logfileloc);
+void newgenomicrelationship(parameters &SimParameters, vector <Animal> &population,vector <int> &animal, vector <double> &Phenotype, double* M, float scale, vector <int> trainanimals,outputfiles &OUTPUTFILES,ostream& logfileloc);
+void updategenomicrelationship(parameters &SimParameters, vector <Animal> &population,vector <int> &animal, vector <double> &Phenotype, double* M, float scale,int TotalOldAnimalNumber,int TotalAnimalNumber,outputfiles &OUTPUTFILES,ostream& logfileloc);
 /* Pedigree type matrices */
 void pedigree_relationship_Colleau(string phenotypefile, vector <int> const &parent_id, double* output_subrelationship);
 void A22_Colleau(vector <int> const &animal,vector <int> const &sire,vector <int> const &dam,vector <int> const &parentid, vector <double> const &pedinbreeding, double* output_subrelationship);
@@ -179,7 +180,7 @@ void A22_Colleau(vector <int> const &animal,vector <int> const &sire,vector <int
 /***********/
 void pcg_solver_dense(vector <tuple<int,int,double>> &lhs_sparse,vector <double> &rhs_sparse, vector <double> &solutionsa, int dimen, int* solvediter);
 void pcg_solver_sparse(vector <tuple<int,int,double>> &lhs_sparse,vector <double> &rhs_sparse, vector <double> &solutionsa, int dimen, int* solvediter);
-void direct_solversparse(parameters &SimParameters,vector <tuple<int,int,double>> &lhs_sparse,vector <double> &rhs_sparse, vector <double> &solutionsa, vector <double> &trueaccuracy,int dimen);
+void direct_solversparse(parameters &SimParameters,vector <tuple<int,int,double>> &lhs_sparse,vector <double> &rhs_sparse, vector <double> &solutionsa, vector <double> &trueaccuracy,int dimen,int traits);
 
 /*******************************************************************/
 /* Functions to output and input eigen matrices into binary format */
@@ -201,7 +202,6 @@ namespace Eigen
         matrix.resize(rows, cols); in.read( (char *) matrix.data() , rows*cols*sizeof(typename Matrix::Scalar)); in.close();
     }
 }
-
 /****************************************************************************************************************************************/
 /****************************************************************************************************************************************/
 /****************************************************************************************************************************************/
@@ -226,7 +226,7 @@ void updateinbreeding(vector <Animal> &population,vector <int> &animal, vector <
 /********************************************************************************/
 /* Generate pedigree based inbreeding values based on Meuwissen & Luo Algorithm */
 /********************************************************************************/
-void Inbreeding_Pedigree(vector <Animal> &population,string Pheno_Pedigree_File)
+void Inbreeding_Pedigree(vector <Animal> &population,outputfiles &OUTPUTFILES)
 {
     vector < int > animal;
     vector < int > sire;
@@ -234,7 +234,7 @@ void Inbreeding_Pedigree(vector <Animal> &population,string Pheno_Pedigree_File)
     /*read in Pheno_Pedigree file and store in a vector to determine how many animals their are */
     string line;
     ifstream infile2;
-    infile2.open(Pheno_Pedigree_File.c_str());                                                 /* This file has all animals in it */
+    infile2.open(OUTPUTFILES.getloc_Pheno_Pedigree().c_str());                                                 /* This file has all animals in it */
     if(infile2.fail()){cout << "Error Opening Pedigree File\n";}
     while (getline(infile2,line))
     {
@@ -330,19 +330,19 @@ float update_M_scale(parameters &SimParameters, vector <Animal> &population,doub
 /**********************************************************************************************************/
 /***       Checks proportion of genotyped animals to ensure you are at the correct ebv estimation place ***/
 /**********************************************************************************************************/
-double proportiongenotyped(parameters &SimParameters,string GenotypeStatus_path)
+double proportiongenotyped(parameters &SimParameters,outputfiles &OUTPUTFILES)
 {
-    string line;
+    string line, genostatustemp;
     ifstream infile; int totalanimals = 0; double genotypedanimals = 0;
-    infile.open(GenotypeStatus_path.c_str());
+    infile.open(OUTPUTFILES.getloc_GenotypeStatus().c_str());
     if(infile.fail()){cout << "GenotypeStatus!\n"; exit (EXIT_FAILURE);}
     while (getline(infile,line))
     {
         size_t pos = line.find(" ",0); line.erase(0, pos + 1);
-        if(line == "Full" || line == "Reduced"){genotypedanimals++;}
+        pos = line.find(" ",0); genostatustemp = (line.substr(0,pos));
+        if(genostatustemp == "Yes"){genotypedanimals++;}
         totalanimals++;
     }
-    //cout << totalanimals << " " << genotypedanimals << endl;
     if(genotypedanimals > 0){genotypedanimals /= double(totalanimals);}
     return genotypedanimals;
 }
@@ -365,363 +365,6 @@ float update_M_scale_Hinverse(parameters &SimParameters, vector <string> &genoty
     scaletemp = scaletemp *2;
     delete [] freq;
     return (scaletemp);
-}
-/******************************************************************/
-/***       Update whether an animal is genotyped or not         ***/
-/******************************************************************/
-void updateanimalgenostatus(parameters &SimParameters,vector <Animal> &population,string GenotypeStatus_path)
-{
-    /* across all methods first update whether an animal is genotyped in the parent population once that is updated then proceed to */
-    /* update the 'GenotypeStatus' file with the genotype status of an animal */
-    /* If doing random then first make a key to figure out whether to genotype or not */
-    unordered_map <int, int> GenoStatuslinker;
-    vector <double> randev_M; vector <double> randev_F;
-    if(SimParameters.getMaleWhoGenotype() == "ebv_parentavg" || SimParameters.getFemaleWhoGenotype() == "ebv_parentavg" || SimParameters.getMaleWhoGenotype() == "parents_ebv_parentavg" || SimParameters.getFemaleWhoGenotype() == "parents_ebv_parentavg") /* Generate parent average */
-    {
-        unordered_map <int, double> parentebv;
-        for(int i = 0; i < population.size();  i++)
-        {
-            if(population[i].getAge() > 1){parentebv.insert({population[i].getID(),population[i].getEBV()});}
-        }
-        //for(pair<int,double> element:parentebv){cout << element.first << " :: " << element.second << endl;}
-        for(int i = 0; i < population.size();  i++)
-        {
-            if(population[i].getAge() == 1)
-            {
-                if(population[i].getSex() == 0)
-                {
-                    randev_M.push_back(((parentebv[population[i].getSire()] + parentebv[population[i].getDam()]) * 0.5));
-                }
-                if(population[i].getSex() == 1)
-                {
-                    randev_F.push_back(((parentebv[population[i].getSire()] + parentebv[population[i].getDam()]) * 0.5));
-                }
-            }
-        }
-        if(SimParameters.getSelectionDir() == "low")    /* sort lowest to highest */
-        {
-            double temp;
-            for(int i = 0; i < (randev_M.size() -1); i++)   /* Sort Males */
-            {
-                for(int j=i+1; j< randev_M.size(); j++)
-                {
-                    if(randev_M[i] > randev_M[j]){temp = randev_M[i]; randev_M[i] = randev_M[j]; randev_M[j] = temp;}
-                }
-            }
-            /* order and take a certain percentage */
-            for(int i = 0; i < (randev_F.size()-1); i++)   /* Sort Females */
-            {
-                for(int j=i+1; j< randev_F.size(); j++)
-                {
-                    if(randev_F[i] > randev_F[j]){temp = randev_F[i]; randev_F[i] = randev_F[j]; randev_F[j] = temp;}
-                }
-            }
-        }
-        if(SimParameters.getSelectionDir() == "high")   /* Sort highest to lowest */
-        {
-            double temp;
-            for(int i = 0; i < (randev_M.size() -1); i++)   /* Sort Males */
-            {
-                for(int j=i+1; j< randev_M.size(); j++)
-                {
-                    if(randev_M[i] < randev_M[j]){temp = randev_M[i]; randev_M[i] = randev_M[j]; randev_M[j] = temp;}
-                }
-            }
-            /* order and take a certain percentage */
-            for(int i = 0; i < (randev_F.size()-1); i++)   /* Sort Females */
-            {
-                for(int j=i+1; j< randev_F.size(); j++)
-                {
-                    if(randev_F[i] < randev_F[j]){temp = randev_F[i]; randev_F[i] = randev_F[j]; randev_F[j] = temp;}
-                }
-            }
-        }
-        //for(int i = 0; i < randev_M.size(); i++){cout << randev_M[i] << " ";}
-        //cout << endl << endl;
-        double malegenotypecutoff = randev_M[int(SimParameters.getMalePropGenotype()*randev_M.size()+1)-1];
-        //for(int i = 0; i < randev_F.size(); i++){cout << randev_F[i] << " ";}
-        //cout << endl << endl;
-        double femalegenotypecutoff = randev_F[int(SimParameters.getFemalePropGenotype()*randev_F.size()+1)-1];
-        //cout << malegenotypecutoff << " " << femalegenotypecutoff << endl;
-        for(int i = 0; i < population.size();  i++)
-        {
-            if(population[i].getAge() == 1)
-            {
-                if(SimParameters.getSelectionDir() == "high")
-                {
-                    if(population[i].getSex() == 0)
-                    {
-                        if(((parentebv[population[i].getSire()] + parentebv[population[i].getDam()]) * 0.5) >= malegenotypecutoff)
-                        {
-                            GenoStatuslinker.insert({population[i].getID(),1});
-                        } else {GenoStatuslinker.insert({population[i].getID(),0});}
-                    }
-                    if(population[i].getSex() == 1)
-                    {
-                        if(((parentebv[population[i].getSire()] + parentebv[population[i].getDam()]) * 0.5) >= femalegenotypecutoff)
-                        {
-                            GenoStatuslinker.insert({population[i].getID(),1});
-                        } else {GenoStatuslinker.insert({population[i].getID(),0});}
-                    }
-                }
-                if(SimParameters.getSelectionDir() == "low")
-                {
-                    if(population[i].getSex() == 0)
-                    {
-                        if(((parentebv[population[i].getSire()] + parentebv[population[i].getDam()]) * 0.5) <= malegenotypecutoff)
-                        {
-                            GenoStatuslinker.insert({population[i].getID(),1});
-                        } else {GenoStatuslinker.insert({population[i].getID(),0});}
-                    }
-                    if(population[i].getSex() == 1)
-                    {
-                        if(((parentebv[population[i].getSire()] + parentebv[population[i].getDam()]) * 0.5) <= femalegenotypecutoff)
-                        {
-                            GenoStatuslinker.insert({population[i].getID(),1});
-                        } else {GenoStatuslinker.insert({population[i].getID(),0});}
-                    }
-                }
-            }
-            if(population[i].getAge() > 1)
-            {
-                if(population[i].getSex() == 0)
-                {
-                    if(SimParameters.getMaleWhoGenotype() == "ebv_parentavg"){GenoStatuslinker.insert({population[i].getID(),0});}
-                    if(SimParameters.getMaleWhoGenotype() == "parents_ebv_parentavg"){GenoStatuslinker.insert({population[i].getID(),1});}
-                    
-                }
-                if(population[i].getSex() == 1)
-                {
-                    if(SimParameters.getFemaleWhoGenotype() == "ebv_parentavg"){GenoStatuslinker.insert({population[i].getID(),0});}
-                    if(SimParameters.getFemaleWhoGenotype() == "parents_ebv_parentavg"){GenoStatuslinker.insert({population[i].getID(),1});}
-                }
-            }
-        }
-    }
-    if(SimParameters.getMaleWhoGenotype() == "random" || SimParameters.getMaleWhoGenotype() == "parents_random" || SimParameters.getFemaleWhoGenotype() == "random" || SimParameters.getFemaleWhoGenotype() == "parents_random")    /* Randomly sample genotypes */
-    {
-        for(int i = 0; i < population.size();  i++)
-        {
-            if(population[i].getAge() == 1)
-            {
-                if(population[i].getSex() == 0){randev_M.push_back(population[i].getRndSelection());}
-                if(population[i].getSex() == 1){randev_F.push_back(population[i].getRndSelection());}
-            }
-        }
-        /* order and take a certain percentage */
-        double temp;
-        for(int i = 0; i < (randev_M.size() -1); i++)   /* Sort Males */
-        {
-            for(int j=i+1; j< randev_M.size(); j++)
-            {
-                if(randev_M[i] > randev_M[j]){temp = randev_M[i]; randev_M[i] = randev_M[j]; randev_M[j] = temp;}
-            }
-        }
-        //for(int i = 0; i < randomdeviate_Male.size(); i++){cout << randomdeviate_Male[i] << " ";}
-        double malegenotypecutoff = randev_M[int(SimParameters.getMalePropGenotype()*randev_M.size()+1)-1];
-        /* order and take a certain percentage */
-        for(int i = 0; i < (randev_F.size()-1); i++)   /* Sort Females */
-        {
-            for(int j=i+1; j< randev_F.size(); j++)
-            {
-                if(randev_F[i] > randev_F[j]){temp = randev_F[i]; randev_F[i] = randev_F[j]; randev_F[j] = temp;}
-            }
-        }
-        //for(int i = 0; i < randomdeviate_Male.size(); i++){cout << randomdeviate_Male[i] << " ";}
-        double femalegenotypecutoff = randev_F[int(SimParameters.getFemalePropGenotype()*randev_F.size()+1)-1];
-        //cout << "Male: " << malegenotypecutoff << "  Female: " <<femalegenotypecutoff << endl;
-        for(int i = 0; i < population.size();  i++)
-        {
-            if(population[i].getAge() == 1)
-            {
-                if(population[i].getSex() == 0)
-                {
-                    if(population[i].getRndSelection() <= malegenotypecutoff)
-                    {
-                        GenoStatuslinker.insert({population[i].getID(),1});
-                    } else {GenoStatuslinker.insert({population[i].getID(),0});}
-                }
-                if(population[i].getSex() == 1)
-                {
-                    if(population[i].getRndSelection() <= femalegenotypecutoff)
-                    {
-                        GenoStatuslinker.insert({population[i].getID(),1});
-                    } else {GenoStatuslinker.insert({population[i].getID(),0});}
-                }
-            }
-            if(population[i].getAge() > 1)
-            {
-                if(population[i].getSex() == 0)
-                {
-                    if(SimParameters.getMaleWhoGenotype() == "random"){GenoStatuslinker.insert({population[i].getID(),0});}
-                    if(SimParameters.getMaleWhoGenotype() == "parents_random"){GenoStatuslinker.insert({population[i].getID(),1});}
-
-                }
-                if(population[i].getSex() == 1)
-                {
-                    if(SimParameters.getFemaleWhoGenotype() == "random"){GenoStatuslinker.insert({population[i].getID(),0});}
-                    if(SimParameters.getFemaleWhoGenotype() == "parents_random"){GenoStatuslinker.insert({population[i].getID(),1});}
-                }
-            }
-        }
-        //for(pair<int,int> element:GenoStatuslinker){cout << element.first << " :: " << element.second << endl;}
-    }
-    /* read in file */
-    vector < string > genostatusrow;
-    string line, tempid;
-    ifstream infile;
-    infile.open(GenotypeStatus_path.c_str());
-    if(infile.fail()){cout << "GenotypeStatus!\n"; exit (EXIT_FAILURE);}
-    while (getline(infile,line)){genostatusrow.push_back(line);}
-    /* update file */
-    for(int i = 0; i < population.size();  i++)
-    {
-        if(population[i].getSex() == 0)             /* males */
-        {
-            if(SimParameters.getMaleWhoGenotype() == "parents")         /* Genotype All Parents */
-            {
-                if(population[i].getAge() > 1)     /* Animal has been selected so now is genotyped */
-                {
-                    //cout << population[i].getID() << "  --  " << genostatusrow[population[i].getID()-1] << "  --  ";
-                    population[i].UpdateGenoStatus("Full");     /* Change genotype status in population */
-                    /* Update in file */
-                    size_t pos = genostatusrow[population[i].getID()-1].find("No",0);   /* only update if was a 'No'" */
-                    if(pos != std::string::npos)
-                    {
-                        pos = genostatusrow[population[i].getID()-1].find(" ",0); tempid = genostatusrow[population[i].getID()-1].substr(0,pos);
-                        genostatusrow[population[i].getID()-1] = tempid + " Full";
-                        //cout << genostatusrow[population[i].getID()-1] << endl;
-                    }
-                }
-            }
-            if(SimParameters.getMaleWhoGenotype() == "offspring")         /* Genotype All Parents */
-            {
-                if(population[i].getAge() == 1)     /* Animal has been selected so now is genotyped */
-                {
-                    //cout << population[i].getID() << "  --  " << genostatusrow[population[i].getID()-1] << "  --  ";
-                    population[i].UpdateGenoStatus("Full");     /* Change genotype status in population */
-                    /* Update in file */
-                    size_t pos = genostatusrow[population[i].getID()-1].find("No",0);   /* only update if was a 'No'" */
-                    if(pos != std::string::npos)
-                    {
-                        pos = genostatusrow[population[i].getID()-1].find(" ",0); tempid = genostatusrow[population[i].getID()-1].substr(0,pos);
-                        genostatusrow[population[i].getID()-1] = tempid + " Full";
-                        //cout << genostatusrow[population[i].getID()-1] << endl;
-                    }
-                }
-            }
-            if(SimParameters.getMaleWhoGenotype() == "parents_offspring")         /* Genotype All Parents and Offspring */
-            {
-                if(population[i].getAge() >= 1)     /* Animal has been selected so now is genotyped */
-                {
-                    //cout << population[i].getID() << "  --  " << genostatusrow[population[i].getID()-1] << "  --  ";
-                    population[i].UpdateGenoStatus("Full");     /* Change genotype status in population */
-                    /* Update in file */
-                    size_t pos = genostatusrow[population[i].getID()-1].find("No",0);   /* only update if was a 'No'" */
-                    if(pos != std::string::npos)
-                    {
-                        pos = genostatusrow[population[i].getID()-1].find(" ",0); tempid = genostatusrow[population[i].getID()-1].substr(0,pos);
-                        genostatusrow[population[i].getID()-1] = tempid + " Full";
-                        //cout << genostatusrow[population[i].getID()-1] << endl;
-                    }
-                }
-            }
-            if(SimParameters.getMaleWhoGenotype() == "random" || SimParameters.getMaleWhoGenotype() == "parents_random" || SimParameters.getMaleWhoGenotype() == "ebv_parentavg" || SimParameters.getMaleWhoGenotype() == "parents_ebv_parentavg")
-            {
-                if(GenoStatuslinker[population[i].getID()] == 1)
-                {
-                    //cout << population[i].getID() << "  --  " << genostatusrow[population[i].getID()-1] << "  --  ";
-                    population[i].UpdateGenoStatus("Full");     /* Change genotype status in population */
-                    /* Update in file */
-                    size_t pos = genostatusrow[population[i].getID()-1].find("No",0);   /* only update if was a 'No'" */
-                    if(pos != std::string::npos)
-                    {
-                        pos = genostatusrow[population[i].getID()-1].find(" ",0); tempid = genostatusrow[population[i].getID()-1].substr(0,pos);
-                        genostatusrow[population[i].getID()-1] = tempid + " Full";
-                        //cout << genostatusrow[population[i].getID()-1] << endl;
-                    }
-                }
-                //cout << population[i].getID() << " " << GenoStatuslinker[population[i].getID()] << endl;
-                //exit (EXIT_FAILURE);
-            }
-        }
-        if(population[i].getSex() == 1)             /* females */
-        {
-            if(SimParameters.getFemaleWhoGenotype() == "parents")         /* Genotype All Parents */
-            {
-                if(population[i].getAge() > 1)     /* Animal has been selected so now is genotyped */
-                {
-                    //cout << population[i].getID() << "  --  " << genostatusrow[population[i].getID()-1] << "  --  ";
-                    population[i].UpdateGenoStatus("Full");     /* Change genotype status in population */
-                    /* Update in file */
-                    size_t pos = genostatusrow[population[i].getID()-1].find("No",0);   /* only update if was a 'No'" */
-                    if(pos != std::string::npos)
-                    {
-                        pos = genostatusrow[population[i].getID()-1].find(" ",0); tempid = genostatusrow[population[i].getID()-1].substr(0,pos);
-                        genostatusrow[population[i].getID()-1] = tempid + " Full";
-                        //cout << genostatusrow[population[i].getID()-1] << endl;
-                    }
-                }
-            }
-            if(SimParameters.getFemaleWhoGenotype() == "offspring")         /* Genotype All Parents */
-            {
-                if(population[i].getAge() == 1)     /* Animal has been selected so now is genotyped */
-                {
-                    //cout << population[i].getID() << "  --  " << genostatusrow[population[i].getID()-1] << "  --  ";
-                    population[i].UpdateGenoStatus("Full");     /* Change genotype status in population */
-                    /* Update in file */
-                    size_t pos = genostatusrow[population[i].getID()-1].find("No",0);   /* only update if was a 'No'" */
-                    if(pos != std::string::npos)
-                    {
-                        pos = genostatusrow[population[i].getID()-1].find(" ",0); tempid = genostatusrow[population[i].getID()-1].substr(0,pos);
-                        genostatusrow[population[i].getID()-1] = tempid + " Full";
-                        //cout << genostatusrow[population[i].getID()-1] << endl;
-                    }
-                }
-            }
-            if(SimParameters.getFemaleWhoGenotype() == "parents_offspring")         /* Genotype All Parents and Offspring */
-            {
-                if(population[i].getAge() >= 1)     /* Animal has been selected so now is genotyped */
-                {
-                    //cout << population[i].getID() << "  --  " << genostatusrow[population[i].getID()-1] << "  --  ";
-                    population[i].UpdateGenoStatus("Full");     /* Change genotype status in population */
-                    /* Update in file */
-                    size_t pos = genostatusrow[population[i].getID()-1].find("No",0);   /* only update if was a 'No'" */
-                    if(pos != std::string::npos)
-                    {
-                        pos = genostatusrow[population[i].getID()-1].find(" ",0); tempid = genostatusrow[population[i].getID()-1].substr(0,pos);
-                        genostatusrow[population[i].getID()-1] = tempid + " Full";
-                        //cout << genostatusrow[population[i].getID()-1] << endl;
-                    }
-                }
-            }
-            if(SimParameters.getFemaleWhoGenotype() == "random" || SimParameters.getFemaleWhoGenotype() == "parents_random" || SimParameters.getFemaleWhoGenotype() == "ebv_parentavg" || SimParameters.getFemaleWhoGenotype() == "parents_ebv_parentavg")
-            {
-                if(GenoStatuslinker[population[i].getID()] == 1)
-                {
-                    //cout << population[i].getID() << "  --  " << genostatusrow[population[i].getID()-1] << "  --  ";
-                    population[i].UpdateGenoStatus("Full");     /* Change genotype status in population */
-                    /* Update in file */
-                    size_t pos = genostatusrow[population[i].getID()-1].find("No",0);   /* only update if was a 'No'" */
-                    if(pos != std::string::npos)
-                    {
-                        pos = genostatusrow[population[i].getID()-1].find(" ",0); tempid = genostatusrow[population[i].getID()-1].substr(0,pos);
-                        genostatusrow[population[i].getID()-1] = tempid + " Full";
-                        //cout << genostatusrow[population[i].getID()-1] << endl;
-                    }
-                }
-                //cout << population[i].getID() << " " << GenoStatuslinker[population[i].getID()] << endl;
-                //exit (EXIT_FAILURE);
-            }
-        }
-    }
-    /* First remove contents from old one then update with new genotype status */
-    fstream cleargenostatus; cleargenostatus.open(GenotypeStatus_path.c_str(), std::fstream::out | std::fstream::trunc); cleargenostatus.close();
-    stringstream outputstringgenostatus(stringstream::out);
-    for(int i = 0; i < genostatusrow.size(); i++){outputstringgenostatus << genostatusrow[i] << endl;}
-    /* output genostatus file */
-    std::ofstream outputg(GenotypeStatus_path.c_str(), std::ios_base::app | std::ios_base::out);
-    outputg << outputstringgenostatus.str(); outputstringgenostatus.str(""); outputstringgenostatus.clear();
 }
 /******************************************************************/
 /***       Proportion of breeding Population Genotyped          ***/
@@ -753,23 +396,65 @@ void breedingpopulationgenotyped(vector <Animal> &population, ostream& logfilelo
     logfileloc << "         - Males: " << maleoffspring << endl;
     logfileloc << "         - Females: " << femaleoffspring << endl << endl;
 }
-/******************************************************************/
-/***    Total number of animals genotyped across all system     ***/
-/******************************************************************/
-int getTotalGenotypeCount(string GenotypeStatus_path)
+/**********************************************************************/
+/***    Total number of animals genotyped within each Generation    ***/
+/**********************************************************************/
+void getGenotypeCountGeneration(outputfiles &OUTPUTFILES,ostream& logfileloc)
 {
-    int numberofgenotyped = 0;
+    vector < int > ID; vector < string > genostat; vector < int > gener; vector < int > generationnumber;
     /* read in file */
     string line;
     ifstream infile;
-    infile.open(GenotypeStatus_path.c_str());
+    infile.open(OUTPUTFILES.getloc_GenotypeStatus().c_str());
     if(infile.fail()){cout << "GenotypeStatus!\n"; exit (EXIT_FAILURE);}
     while (getline(infile,line))
     {
-        size_t pos = line.find("No",0);   /* only update if was a 'No'" */
-        if(pos == std::string::npos){numberofgenotyped++;}
+        size_t pos = line.find(" ",0); ID.push_back(atoi(line.substr(0,pos).c_str())); line.erase(0, pos + 1);
+        genostat.push_back(line); gener.push_back(-5); generationnumber.push_back(-5);
     }
-    return numberofgenotyped;
+    //cout << ID.size() << " " << genostat.size() << endl;
+    //for(int i = 0; i < 10; i++){cout << ID[i] << " " << genostat[i] << " " << gener[i] << endl;}
+    
+    ifstream infile1; int linenumber = 0; int tempid, tempgen;
+    infile1.open(OUTPUTFILES.getloc_Master_DataFrame().c_str());
+    if(infile1.fail()){cout << "MasterDF File!\n"; exit (EXIT_FAILURE);}
+    while (getline(infile1,line))
+    {
+        if(linenumber > 0)
+        {
+            size_t pos = line.find(" ",0); tempid = (atoi(line.substr(0,pos).c_str())); line.erase(0, pos + 1);
+            pos = line.find(" ",0); line.erase(0, pos + 1);
+            pos = line.find(" ",0); line.erase(0, pos + 1);
+            pos = line.find(" ",0); line.erase(0, pos + 1);
+            pos = line.find(" ",0); tempgen = (atoi(line.substr(0,pos).c_str())); line.erase(0, pos + 1);
+            gener[tempid-1] = tempgen; generationnumber[tempid-1] = tempgen;
+            if(tempid != ID[tempid-1]){cout << "Error in matching" << endl; exit (EXIT_FAILURE);}
+        }
+        linenumber++;
+    }
+    /* Figure out number of generations */
+    sort(generationnumber.begin(),generationnumber.end());
+    generationnumber.erase(unique(generationnumber.begin(),generationnumber.end()),generationnumber.end());
+    //cout << generationnumber.size() << endl;
+    //for(int i = 0; i < generationnumber.size(); i++){cout << generationnumber[i] << endl;}
+    vector < int > gennumgeno(generationnumber.size(),0);
+    vector < int > gennumnogeno(generationnumber.size(),0);
+    int fullgeno = 0; int fullnogeno = 0;
+    for(int i = 0; i < ID.size(); i++)
+    {
+        size_t pos = genostat[i].find("No",0);   /* only update if was a 'No'" */
+        if(pos == std::string::npos)
+        {
+            gennumgeno[gener[i]]++; fullgeno++;
+        } else {gennumnogeno[gener[i]]++; fullnogeno++;}
+    }
+    
+    logfileloc << "   Number of Genotyped and not Genotyped Animals by Generation" << endl;
+    for(int i = 0; i < generationnumber.size(); i++)
+    {
+        logfileloc << "    -Generation " << generationnumber[i] << ": " << gennumgeno[i] << " " << gennumnogeno[i] << endl;
+    }
+    logfileloc << "    -Total: " << fullgeno << " " << fullnogeno << endl << endl;
 }
 /************************************/
 /***     Matrix Statistics        ***/
@@ -778,6 +463,7 @@ void MatrixStats(vector <double> &summarystats, double* output_subrelationship, 
 {
     double meandiagonal = 0.0; double mindiag = output_subrelationship[(0*dimen)+0]; double maxdiag = output_subrelationship[(0*dimen)+0];
     double meanoffdiagonal = 0.0; double minoffdiag = output_subrelationship[(0*dimen)+1]; double maxoffdiag = output_subrelationship[(0*dimen)+1];
+    double meanallrelationship = 0.0; int countsall = 0;
     int countsoffdiagonal = 0;
     for(int i = 0; i < dimen; i++)
     {
@@ -786,21 +472,24 @@ void MatrixStats(vector <double> &summarystats, double* output_subrelationship, 
             
             if(i == j)
             {
+                meanallrelationship += output_subrelationship[(i*dimen)+j]; countsall++;
                 meandiagonal += output_subrelationship[(i*dimen)+j];
                 if(output_subrelationship[(i*dimen)+j] < mindiag){mindiag = output_subrelationship[(i*dimen)+j];}
                 if(output_subrelationship[(i*dimen)+j] > maxdiag){maxdiag = output_subrelationship[(i*dimen)+j];}
             }
             if(i != j)
             {
+                meanallrelationship += output_subrelationship[(i*dimen)+j]; countsall++;
+                meanallrelationship += output_subrelationship[(i*dimen)+j]; countsall++;
                 meanoffdiagonal += output_subrelationship[(i*dimen)+j]; countsoffdiagonal++;
                 if(output_subrelationship[(i*dimen)+j] < minoffdiag){minoffdiag = output_subrelationship[(i*dimen)+j];}
                 if(output_subrelationship[(i*dimen)+j] > maxoffdiag){maxoffdiag = output_subrelationship[(i*dimen)+j];}
             }
         }
     }
-    meandiagonal /= double(dimen); meanoffdiagonal /= double(countsoffdiagonal);
+    meandiagonal /= double(dimen); meanoffdiagonal /= double(countsoffdiagonal); meanallrelationship /= double(countsall);
     summarystats[0] = meandiagonal; summarystats[1] = mindiag; summarystats[2] = maxdiag;
-    summarystats[3] = meanoffdiagonal; summarystats[4] = minoffdiag; summarystats[5] = maxoffdiag;
+    summarystats[3] = meanoffdiagonal; summarystats[4] = minoffdiag; summarystats[5] = maxoffdiag; summarystats[6] = meanallrelationship;
     logfileloc <<"              - Diagonal: \t" <<summarystats[0]<<"\t"<<summarystats[1]<<"\t"<<summarystats[2]<<endl;
     logfileloc <<"              - Off-diagonal: \t"<<summarystats[3]<<"\t"<<summarystats[4]<<"\t"<<summarystats[5]<<endl;
 }
@@ -850,7 +539,7 @@ void MatrixCorrStats(vector <double> &summarystats, double* _grm_mkl, double* A2
 /************************************/
 /***       Figure Out Training    ***/
 /************************************/
-void update_animgreat(parameters &SimParameters,vector <Animal> &population, vector <int> &trainanimals,string Pheno_Pedigree_File,int Gen)
+void update_animgreat(parameters &SimParameters,vector <Animal> &population, vector <int> &trainanimals,outputfiles &OUTPUTFILES,int Gen)
 {
     vector < int > fullanim; vector < int > fullsire; vector < int > fulldam;
     /*******************************/
@@ -858,7 +547,7 @@ void update_animgreat(parameters &SimParameters,vector <Animal> &population, vec
     /*******************************/
     vector <string> numbers; string line;                                               /* Import file and put each row into a vector */
     ifstream infile1;
-    infile1.open(Pheno_Pedigree_File.c_str());
+    infile1.open(OUTPUTFILES.getloc_Pheno_Pedigree());
     if(infile1.fail()){cout << "Error Opening Phenotype File \n"; exit (EXIT_FAILURE);}
     while (getline(infile1,line)){numbers.push_back(line);}     /* Stores in vector and each new line push back to next space */
     for(int i = 0; i < numbers.size(); i++)
@@ -880,7 +569,8 @@ void update_animgreat(parameters &SimParameters,vector <Animal> &population, vec
         if(population[i].getAge() == 1)
         {
             trainanimals.push_back(population[i].getID());
-            tempparents.push_back(population[i].getSire()); tempparents.push_back(population[i].getDam());
+            if(population[i].getSire() != 0){tempparents.push_back(population[i].getSire());}
+            if(population[i].getDam() != 0){tempparents.push_back(population[i].getDam());}
         }
     }
     int traingenback = 0;
@@ -948,14 +638,14 @@ void update_animgreat(parameters &SimParameters,vector <Animal> &population, vec
 /************************************/
 /***         Generate Amax        ***/
 /************************************/
-void getamax (parameters &SimParameters,vector <Animal> &population,string Master_DF_File,string Pheno_Pedigree_File,string Amax_Output)
+void getamax(parameters &SimParameters,vector <Animal> &population,outputfiles &OUTPUTFILES)
 {
     vector <int> animal; vector < int > sire; vector < int > dam;
     vector <int> generation;
     int recentgen = -5;
     vector <string> numbers; string line;                                               /* Import file and put each row into a vector */
     ifstream infile1;
-    infile1.open(Master_DF_File.c_str());
+    infile1.open(OUTPUTFILES.getloc_Master_DF().c_str());
     if(infile1.fail()){cout << "Error Opening Phenotype File \n"; exit (EXIT_FAILURE);}
     while (getline(infile1,line)){numbers.push_back(line);}     /* Stores in vector and each new line push back to next space */
     for(int i = 0; i < numbers.size(); i++)
@@ -1109,7 +799,7 @@ void getamax (parameters &SimParameters,vector <Animal> &population,string Maste
             delete [] temprelationship;
         }
     }
-    std::ofstream outAmax(Amax_Output.c_str(), std::ios_base::app | std::ios_base::out);
+    std::ofstream outAmax(OUTPUTFILES.getloc_Amax_Output().c_str(), std::ios_base::app | std::ios_base::out);
     outAmax << recentgen;
     for(int i = 0; i < acrossgenerationAmax.size(); i++)
     {
@@ -1120,177 +810,18 @@ void getamax (parameters &SimParameters,vector <Animal> &population,string Maste
 /********************************************/
 /***         Generate Correlations        ***/
 /********************************************/
-void trainrefcor(parameters &SimParameters,vector <Animal> &population,string Correlation_Output, int Gen)
+void trainrefcor(parameters &SimParameters,vector <Animal> &population,outputfiles &OUTPUTFILES, int Gen)
 {
-    vector < vector < double > > variables; int n;
-    string outputstring;
-    /********************/
-    /* First do parents */
-    /********************/
+    std::ofstream outCorra(OUTPUTFILES.getloc_TraitReference_Output().c_str(), std::ios_base::app | std::ios_base::out);
     for(int i = 0; i < population.size(); i++)
     {
-        if(population[i].getAge() > 1)
+        outCorra << population[i].getID() << " ";
+        for(int j = 0; j < (population[i].get_EBVvect()).size(); j++)
         {
-            vector < double > temp;
-            temp.push_back(population[i].getEBV()); temp.push_back(population[i].getGenotypicValue());
-            temp.push_back(population[i].getBreedingValue()); temp.push_back(population[i].getDominanceDeviation());
-            variables.push_back(temp);
+            outCorra<<(population[i].get_EBVvect())[j]<<" "<<(population[i].get_BVvect())[j]<<" ";
         }
+        outCorra << Gen << " " << population[i].getAnimalStage() << endl;
     }
-    n = variables.size();
-    //cout << n << endl;
-    //for(int i = 0; i < variables.size(); i++)
-    //{
-    //    cout << i << " ";
-    //    for(int j = 0; j < variables[0].size(); j++)
-    //    {
-    //        cout << variables[i][j] << " ";
-    //    }
-    //    cout << "   ---   ";
-    //}
-    //cout << endl << endl;
-    vector < double > mean(4,0.0); double bias;
-    vector < vector < double > > covar(4, vector<double>(4,0.0));
-    for(int i = 0; i < variables.size(); i++)
-    {
-        for(int j = 0; j < variables[0].size(); j++){mean[j] += variables[i][j];}
-    }
-    for(int j = 0; j < variables[0].size(); j++){mean[j] /= double(n);}
-    //for(int j = 0; j < variables[0].size(); j++){cout << mean[j] << " ";}
-    //cout << endl << endl;
-    //for(int i = 0; i < 4; i++)
-    //{
-    //    for(int j = 0; j < 4; j++){cout << covar[i][j] << " ";}
-    //    cout << endl;
-    //}
-    //cout << endl;
-    for(int ind = 0; ind < n; ind++)
-    {
-        for(int i = 0; i < 4; i++)
-        {
-            for(int j = 0; j <= i; j++){covar[i][j] += ((variables[ind][i] - mean[i]) * (variables[ind][j] - mean[j]));}
-        }
-    }
-    bias = covar[2][0] / double(covar[0][0]);
-    for(int i = 0; i < 4; i++){covar[i][i] = sqrt(covar[i][i] / double(n-1));}
-    for(int i = 0; i < 4; i++)
-    {
-        for(int j = i+1; j < 4; j++)
-        {
-            covar[i][j] = ((covar[j][i] / double(covar[i][i] * covar[j][j])) / double(n-1));
-        }
-    }
-    //for(int i = 0; i < 4; i++)
-    //{
-    //    for(int j = 0; j < 4; j++){cout << covar[i][j] << "\t" ;}
-    //    cout << endl;
-    //}
-    //for(int i = 1; i < 4; i++){cout << covar[0][i] << endl;}
-    /* Save to a string */
-    stringstream s1; s1 << Gen-1; string tempGen = s1.str();
-    outputstring = outputstring + tempGen;
-    //cout << outputstring << endl;
-    for(int i = 1; i < 4; i++)
-    {
-        stringstream s2; s2 << covar[0][i]; string tempvar2 = s2.str();
-        outputstring = outputstring + " " + tempvar2;
-        //cout << outputstring << endl;
-    }
-    stringstream sbiasparent; sbiasparent << bias; string tempbiasparent = sbiasparent.str();
-    outputstring = outputstring + " " + tempbiasparent;
-    //cout << outputstring << endl;
-    /* First zero everything out */
-    for(int i = 0; i < 4; i++)
-    {
-        mean[i] = 0.0;
-        for(int j = 0; j < 4; j++){covar[i][j] = 0.0;}
-    }
-    for(int i = 0; i < n; i++){variables[i].clear();}
-    variables.clear();
-    /********************/
-    /* Then do progeny */
-    /********************/
-    for(int i = 0; i < population.size(); i++)
-    {
-        if(population[i].getAge() == 1)
-        {
-            vector < double > temp;
-            temp.push_back(population[i].getEBV()); temp.push_back(population[i].getGenotypicValue());
-            temp.push_back(population[i].getBreedingValue()); temp.push_back(population[i].getDominanceDeviation());
-            variables.push_back(temp);
-        }
-    }
-    n = variables.size();
-    //cout << n << endl;
-    //for(int i = 0; i < variables.size(); i++)
-    //{
-    //    cout << i << " ";
-    //    for(int j = 0; j < variables[0].size(); j++)
-    //    {
-    //        cout << variables[i][j] << " ";
-    //    }
-    //    cout << endl;
-    //}
-    //cout << endl << endl;
-    for(int i = 0; i < variables.size(); i++)
-    {
-        for(int j = 0; j < variables[0].size(); j++){mean[j] += variables[i][j];}
-    }
-    for(int j = 0; j < variables[0].size(); j++){mean[j] /= double(n);}
-    //for(int j = 0; j < variables[0].size(); j++){cout << mean[j] << " ";}
-    //cout << endl << endl;
-    //for(int i = 0; i < 4; i++)
-    //{
-    //    for(int j = 0; j < 4; j++){cout << covar[i][j] << " ";}
-    //    cout << endl;
-    //}
-    //cout << endl;
-    for(int ind = 0; ind < n; ind++)
-    {
-        for(int i = 0; i < 4; i++)
-        {
-            for(int j = 0; j <= i; j++){covar[i][j] += ((variables[ind][i] - mean[i]) * (variables[ind][j] - mean[j]));}
-        }
-    }
-    bias = covar[2][0] / double(covar[0][0]);
-    for(int i = 0; i < 4; i++){covar[i][i] = sqrt(covar[i][i] / double(n-1));}
-    for(int i = 0; i < 4; i++)
-    {
-        for(int j = i+1; j < 4; j++)
-        {
-            covar[i][j] = ((covar[j][i] / double(covar[i][i] * covar[j][j])) / double(n-1));
-        }
-    }
-    //cout << bias << endl;
-    
-    //using Eigen::MatrixXd; using Eigen::VectorXd;
-    //MatrixXd X((variables.size()),2);
-    //for(int i = 0; i < X.rows(); i++){X(i,0) = 1; X(i,1) = variables[i][0];}
-    //VectorXd Y(X.rows());
-    //for(int i = 0; i < X.rows(); i++){Y(i) = variables[i][2];}
-    //MatrixXd LHSInverse(2,2); LHSInverse = (X.transpose() * X).inverse();
-    //MatrixXd Solutions(2,1); Solutions = (LHSInverse * (X.transpose()*Y));
-    //cout << LHSInverse << endl;
-    //cout << Solutions << endl;
-    
-    
-    /* Save to a string */
-    for(int i = 1; i < 4; i++)
-    {
-        stringstream s2; s2 << covar[0][i]; string tempvar2 = s2.str();
-        outputstring = outputstring + " " + tempvar2;
-        //cout << outputstring << endl;
-    }
-    stringstream sbiasprogeny; sbiasprogeny << bias; string tempbiasprogeny = sbiasprogeny.str();
-    outputstring = outputstring + " " + tempbiasprogeny;
-    //cout << endl;
-    //for(int i = 0; i < 4; i++)
-    //{
-    //    for(int j = 0; j < 4; j++){cout << covar[i][j] << " ";}
-    //    cout << endl;
-    //}
-    std::ofstream outCorr(Correlation_Output.c_str(), std::ios_base::app | std::ios_base::out);
-    outCorr << outputstring << endl;
 }
 /****************************************************************************************************************************************/
 /****************************************************************************************************************************************/
@@ -1301,7 +832,7 @@ void trainrefcor(parameters &SimParameters,vector <Animal> &population,string Co
 /****************************************************************************************************************************************/
 /****************************************************************************************************************************************/
 /****************************************************************************************************************************************/
-void Generate_BLUP_EBV(parameters &SimParameters,vector <Animal> &population, vector <double> &estimatedsolutions, vector <double> &trueaccuracy,ostream& logfileloc,vector <int> &trainanimals,int TotalAnimalNumber, int TotalOldAnimalNumber, int Gen,string Pheno_Pedigree_File,string GenotypeStatus_path,string Pheno_GMatrix_File,double* M, float scale,string BinaryG_Matrix_File,string Binarym_Matrix_File, string Binaryp_Matrix_File, string BinaryGinv_Matrix_File,string BinaryLinv_Matrix_File,vector < hapLibrary > &haplib)
+void Generate_BLUP_EBV(parameters &SimParameters,vector <Animal> &population, vector <double> &estimatedsolutions, vector <double> &trueaccuracy,ostream& logfileloc,vector <int> &trainanimals,int TotalAnimalNumber, int TotalOldAnimalNumber, int Gen,double* M, float scale,vector < hapLibrary > &haplib,outputfiles &OUTPUTFILES)
 {
     /* When updating relationship matrix will use TotalAnimalNumber and OldAnimal number, but for everything else use relationshipsize */
     int relationshipsize;
@@ -1310,12 +841,13 @@ void Generate_BLUP_EBV(parameters &SimParameters,vector <Animal> &population, ve
     if(SimParameters.getGener() > SimParameters.getreferencegenblup())
     {
         /* Truncate either G or P; Figure out which animal id to start keeping genotypes */
-        update_animgreat(SimParameters,population,trainanimals,Pheno_Pedigree_File,Gen);
+        update_animgreat(SimParameters,population,trainanimals,OUTPUTFILES,Gen);
         relationshipsize = trainanimals.size();
         logfileloc << "       - A portion of animals were removed!" << endl;
     } else {relationshipsize = TotalAnimalNumber;}
     logfileloc << "       - Size of Relationship Matrix: " << relationshipsize << " X " << relationshipsize << "." << endl;
-    double scalinglambda = (1 - SimParameters.getVarAdd()) / double(SimParameters.getVarAdd());     /* Shrinkage Factor for MME */
+    double scalinglambda = (1-(SimParameters.get_Var_Additive())[0]) / double((SimParameters.get_Var_Additive())[0]);     /* Shrinkage Factor for MME */
+    /* If doing multiple trait will append second trait to end of Phenotype vector */
     vector < double > Phenotype(relationshipsize,0.0);                  /* Vector of phenotypes */
     vector < int > animal(relationshipsize,0);                          /* Array to store Animal IDs */
     vector < tuple <int,int,double> > sprelationshipinv;                /* Sparse storage of relationship inverse */
@@ -1326,26 +858,22 @@ void Generate_BLUP_EBV(parameters &SimParameters,vector <Animal> &population, ve
         /**********************************************************/
         if(SimParameters.getEBV_Calc() == "h1" || SimParameters.getEBV_Calc() == "h2" || SimParameters.getEBV_Calc() == "rohblup")
         {
-            double propgeno = proportiongenotyped(SimParameters,GenotypeStatus_path);
+            double propgeno = proportiongenotyped(SimParameters,OUTPUTFILES);
             if(propgeno != 1)
             {
                 cout << endl << "Mix of genotyped and non-genotyped animals so shouldn't be at pblup option ebv estimation" << endl;
                 exit (EXIT_FAILURE);
             }
-            /* Initialize first then you can update for later generations */
-            if(Gen == (SimParameters.getGenfoundsel() + 1))     /* Initialize first then you can update for later generations */
+            newhaplotyperelationship(SimParameters,population,haplib,animal,Phenotype,trainanimals,OUTPUTFILES,logfileloc);
+            if(SimParameters.getGeno_Inverse() == "recursion")
             {
-                newhaplotyperelationship(SimParameters,population,haplib,Pheno_GMatrix_File,animal,Phenotype,trainanimals,BinaryG_Matrix_File,logfileloc);
-                if(SimParameters.getGeno_Inverse() == "recursion"){newgenomicrecursion(SimParameters,relationshipsize,BinaryG_Matrix_File,Binarym_Matrix_File,Binaryp_Matrix_File,BinaryGinv_Matrix_File,sprelationshipinv,logfileloc,animal);}
-                if(SimParameters.getGeno_Inverse() == "cholesky"){newgenomiccholesky(SimParameters,relationshipsize,BinaryG_Matrix_File,BinaryLinv_Matrix_File,BinaryGinv_Matrix_File,sprelationshipinv,logfileloc,animal);}
+                newgenomicrecursion(SimParameters,relationshipsize,sprelationshipinv,animal,OUTPUTFILES,logfileloc);
             }
-            if(Gen > (SimParameters.getGenfoundsel() + 1))
+            if(SimParameters.getGeno_Inverse() == "cholesky")
             {
-                updatehaplotyperelationship(SimParameters,population,haplib,Pheno_GMatrix_File,animal,Phenotype,BinaryG_Matrix_File,TotalOldAnimalNumber,TotalAnimalNumber,logfileloc);
-                if(SimParameters.getGeno_Inverse() == "recursion"){updategenomicrecursion(TotalAnimalNumber,TotalOldAnimalNumber,BinaryG_Matrix_File,Binarym_Matrix_File,Binaryp_Matrix_File,BinaryGinv_Matrix_File,sprelationshipinv,logfileloc,animal);}
-                if(SimParameters.getGeno_Inverse() == "cholesky"){updategenomiccholesky(TotalAnimalNumber,TotalOldAnimalNumber,BinaryG_Matrix_File,BinaryLinv_Matrix_File,BinaryGinv_Matrix_File, sprelationshipinv,logfileloc,animal);}
+                newgenomiccholesky(SimParameters,relationshipsize,sprelationshipinv,animal,OUTPUTFILES,logfileloc);
             }
-            Inbreeding_Pedigree(population,Pheno_Pedigree_File);        /* Still need to calculate pedigree inbreeding so do it now */
+            Inbreeding_Pedigree(population,OUTPUTFILES);        /* Still need to calculate pedigree inbreeding so do it now */
         }
         /*************************************************************************************************/
         /* The gblup is dependent on frequencies (founder, observed) so updating will only work for  */
@@ -1353,7 +881,7 @@ void Generate_BLUP_EBV(parameters &SimParameters,vector <Animal> &population, ve
         /*************************************************************************************************/
         if(SimParameters.getEBV_Calc() == "gblup")
         {
-            double propgeno = proportiongenotyped(SimParameters,GenotypeStatus_path);
+            double propgeno = proportiongenotyped(SimParameters,OUTPUTFILES);
             if(propgeno != 1)
             {
                 cout << endl << "Mix of genotyped and non-genotyped animals so shouldn't be at pblup option ebv estimation" << endl;
@@ -1365,15 +893,27 @@ void Generate_BLUP_EBV(parameters &SimParameters,vector <Animal> &population, ve
                 logfileloc << "       - G constructed based on founder allele frequencies." << endl;
                 if(Gen == (SimParameters.getGenfoundsel() + 1))     /* Initialize first then you can update for later generations */
                 {
-                    newgenomicrelationship(SimParameters,population,Pheno_GMatrix_File,animal,Phenotype,M,scale,trainanimals,BinaryG_Matrix_File,logfileloc);
-                    if(SimParameters.getGeno_Inverse() == "recursion"){newgenomicrecursion(SimParameters,relationshipsize,BinaryG_Matrix_File,Binarym_Matrix_File,Binaryp_Matrix_File,BinaryGinv_Matrix_File,sprelationshipinv,logfileloc,animal);}
-                    if(SimParameters.getGeno_Inverse() == "cholesky"){newgenomiccholesky(SimParameters,relationshipsize,BinaryG_Matrix_File,BinaryLinv_Matrix_File,BinaryGinv_Matrix_File,sprelationshipinv,logfileloc,animal);}
+                    newgenomicrelationship(SimParameters,population,animal,Phenotype,M,scale,trainanimals,OUTPUTFILES,logfileloc);
+                    if(SimParameters.getGeno_Inverse() == "recursion")
+                    {
+                        newgenomicrecursion(SimParameters,relationshipsize,sprelationshipinv,animal,OUTPUTFILES,logfileloc);
+                    }
+                    if(SimParameters.getGeno_Inverse() == "cholesky")
+                    {
+                        newgenomiccholesky(SimParameters,relationshipsize,sprelationshipinv,animal,OUTPUTFILES,logfileloc);
+                    }
                 }
                 if(Gen > (SimParameters.getGenfoundsel() + 1))
                 {
-                    updategenomicrelationship(SimParameters,population,Pheno_GMatrix_File,animal,Phenotype,M,scale,BinaryG_Matrix_File,TotalOldAnimalNumber,TotalAnimalNumber,logfileloc);
-                    if(SimParameters.getGeno_Inverse() == "recursion"){updategenomicrecursion(TotalAnimalNumber,TotalOldAnimalNumber,BinaryG_Matrix_File,Binarym_Matrix_File,Binaryp_Matrix_File,BinaryGinv_Matrix_File,sprelationshipinv,logfileloc,animal);}
-                    if(SimParameters.getGeno_Inverse() == "cholesky"){updategenomiccholesky(TotalAnimalNumber,TotalOldAnimalNumber,BinaryG_Matrix_File,BinaryLinv_Matrix_File,BinaryGinv_Matrix_File, sprelationshipinv,logfileloc,animal);}
+                    updategenomicrelationship(SimParameters,population,animal,Phenotype,M,scale,TotalOldAnimalNumber,TotalAnimalNumber,OUTPUTFILES,logfileloc);
+                    if(SimParameters.getGeno_Inverse() == "recursion")
+                    {
+                        updategenomicrecursion(TotalAnimalNumber,TotalOldAnimalNumber,sprelationshipinv,animal,OUTPUTFILES,logfileloc);
+                    }
+                    if(SimParameters.getGeno_Inverse() == "cholesky")
+                    {
+                        updategenomiccholesky(TotalAnimalNumber,TotalOldAnimalNumber,sprelationshipinv,animal,OUTPUTFILES,logfileloc);
+                    }
                 }
             }
             if(SimParameters.getConstructGFreq() == "observed")
@@ -1382,22 +922,22 @@ void Generate_BLUP_EBV(parameters &SimParameters,vector <Animal> &population, ve
                 double* Mobs = new double[3*(population[0].getMarker()).size()]; /* Dimension 3 by number of markers */
                 float scaleobs =  update_M_scale(SimParameters,population,Mobs);
                 logfileloc << "       - G constructed based on observed (i.e. selection candidate) allele frequencies." << endl;
-                //cout << scaleobs << endl;
-                //for(int i = 0; i < 5; i++)
-                //{
-                //    for(int j = 0; j < 3; j++){cout << Mobs[(j*(population[0].getMarker()).size())+i] << " ";}
-                //    cout << endl;
-                //}
-                newgenomicrelationship(SimParameters,population,Pheno_GMatrix_File,animal,Phenotype,M,scale,trainanimals,BinaryG_Matrix_File,logfileloc);
+                newgenomicrelationship(SimParameters,population,animal,Phenotype,M,scale,trainanimals,OUTPUTFILES,logfileloc);
                 delete [] Mobs;
-                if(SimParameters.getGeno_Inverse() == "recursion"){newgenomicrecursion(SimParameters,relationshipsize,BinaryG_Matrix_File,Binarym_Matrix_File,Binaryp_Matrix_File,BinaryGinv_Matrix_File,sprelationshipinv,logfileloc,animal);}
-                if(SimParameters.getGeno_Inverse() == "cholesky"){newgenomiccholesky(SimParameters,relationshipsize,BinaryG_Matrix_File,BinaryLinv_Matrix_File,BinaryGinv_Matrix_File,sprelationshipinv,logfileloc,animal);}
+                if(SimParameters.getGeno_Inverse() == "recursion")
+                {
+                    newgenomicrecursion(SimParameters,relationshipsize,sprelationshipinv,animal,OUTPUTFILES,logfileloc);
+                }
+                if(SimParameters.getGeno_Inverse() == "cholesky")
+                {
+                    newgenomiccholesky(SimParameters,relationshipsize,sprelationshipinv,animal,OUTPUTFILES,logfileloc);
+                }
             }
-            Inbreeding_Pedigree(population,Pheno_Pedigree_File);        /* Still need to calculate pedigree inbreeding so do it now */
+            Inbreeding_Pedigree(population,OUTPUTFILES);        /* Still need to calculate pedigree inbreeding so do it now */
         }
         if(SimParameters.getEBV_Calc() == "ssgblup")
         {
-            double propgeno = proportiongenotyped(SimParameters,GenotypeStatus_path);
+            double propgeno = proportiongenotyped(SimParameters,OUTPUTFILES);
             /* Genotyped proportion has to be either 0 (i.e. no genotypes) or any value below 1.0 (i.e. all genotyped) */
             /* It can't be all genotyped because that would be gblup, rohblup or a bayes option */
             if(propgeno == 1.0)
@@ -1409,25 +949,33 @@ void Generate_BLUP_EBV(parameters &SimParameters,vector <Animal> &population, ve
             {
                 logfileloc << "       - Begin Constructing Sparse A-Inverse (i.e. No animals are genotyped)." << endl;
                 time_t start = time(0); vector <double> pedigreeinb(animal.size());
-                Setup_SpmeuwissenluoAinv(Pheno_Pedigree_File,animal,Phenotype,trainanimals,sprelationshipinv,pedigreeinb,logfileloc);
+                Setup_SpmeuwissenluoAinv(animal,Phenotype,trainanimals,sprelationshipinv,pedigreeinb,OUTPUTFILES,logfileloc);
                 updateinbreeding(population,animal,pedigreeinb);            /* Update inbreeding for animal */
                 time_t end = time(0);
                 logfileloc<< "       - Finished Constructing Sparse Ainverse.\n"<<"               - Took: "<<difftime(end,start)<<" seconds."<<endl;
             }
             if(propgeno > 0.0 && propgeno < 1.0)
             {
+                /* If doing single step and performing imputation do imputation now */
+                if(SimParameters.getImputationFile() != "nofile")
+                {
+                    logfileloc << "       - Begin SNP Imputation using the following script '" << SimParameters.getImputationFile() << "'" << endl;
+                    //exit (EXIT_FAILURE);
+                    string command = "./"+SimParameters.getImputationFile()+"> file1.txt";
+                    system(command.c_str()); system("rm file1.txt");
+                }
                 logfileloc << "       - Begin Constructing H Inverse." << endl;
                 logfileloc << "            - Proportion of population genotyped: " << propgeno << "." << endl;
                 time_t start = time(0);
-                H_inverse_function(SimParameters,population,Pheno_Pedigree_File,Pheno_GMatrix_File,GenotypeStatus_path,animal,Phenotype,trainanimals,sprelationshipinv,logfileloc);
-                Inbreeding_Pedigree(population,Pheno_Pedigree_File);        /* Still need to calculate pedigree inbreeding so do it now */
+                H_inverse_function(SimParameters,population,animal,Phenotype,trainanimals,sprelationshipinv,OUTPUTFILES,logfileloc);
+                Inbreeding_Pedigree(population,OUTPUTFILES);        /* Still need to calculate pedigree inbreeding so do it now */
                 time_t end = time(0);
                 logfileloc << "       - Finished Constructing Hinv.\n"<<"               - Took: "<<difftime(end,start)<<" seconds."<<endl;
             }
         }
         if(SimParameters.getEBV_Calc() == "pblup")
         {
-            double propgeno = proportiongenotyped(SimParameters,GenotypeStatus_path);
+            double propgeno = proportiongenotyped(SimParameters,OUTPUTFILES);
             if(propgeno != 0)
             {
                 cout << endl << "Mix of genotyped and non-genotyped animals so shouldn't be at pblup option ebv estimation" << endl;
@@ -1435,7 +983,7 @@ void Generate_BLUP_EBV(parameters &SimParameters,vector <Animal> &population, ve
             }
             logfileloc << "       - Begin Constructing Sparse A-Inverse." << endl;
             time_t start = time(0); vector <double> pedigreeinb(animal.size());
-            Setup_SpmeuwissenluoAinv(Pheno_Pedigree_File,animal,Phenotype,trainanimals,sprelationshipinv,pedigreeinb,logfileloc);
+            Setup_SpmeuwissenluoAinv(animal,Phenotype,trainanimals,sprelationshipinv,pedigreeinb,OUTPUTFILES,logfileloc);
             updateinbreeding(population,animal,pedigreeinb);            /* Update inbreeding for animal */
             time_t end = time(0);
             logfileloc<< "       - Finished Constructing Sparse Ainverse.\n"<<"               - Took: "<<difftime(end,start)<<" seconds."<<endl;
@@ -1445,19 +993,25 @@ void Generate_BLUP_EBV(parameters &SimParameters,vector <Animal> &population, ve
     {
         if(SimParameters.getEBV_Calc() == "h1" || SimParameters.getEBV_Calc() == "h2" || SimParameters.getEBV_Calc() == "rohblup")
         {
-            double propgeno = proportiongenotyped(SimParameters,GenotypeStatus_path);
+            double propgeno = proportiongenotyped(SimParameters,OUTPUTFILES);
             if(propgeno != 1)
             {
                 cout << endl << "Mix of genotyped and non-genotyped animals so shouldn't be at pblup option ebv estimation" << endl;
                 exit (EXIT_FAILURE);
             }
-            newhaplotyperelationship(SimParameters,population,haplib,Pheno_GMatrix_File,animal,Phenotype,trainanimals,BinaryG_Matrix_File,logfileloc);
-            if(SimParameters.getGeno_Inverse() == "recursion"){newgenomicrecursion(SimParameters,relationshipsize,BinaryG_Matrix_File,Binarym_Matrix_File,Binaryp_Matrix_File,BinaryGinv_Matrix_File,sprelationshipinv,logfileloc,animal);}
-            if(SimParameters.getGeno_Inverse() == "cholesky"){newgenomiccholesky(SimParameters,relationshipsize,BinaryG_Matrix_File,BinaryLinv_Matrix_File,BinaryGinv_Matrix_File,sprelationshipinv,logfileloc,animal);}
+            newhaplotyperelationship(SimParameters,population,haplib,animal,Phenotype,trainanimals,OUTPUTFILES,logfileloc);
+            if(SimParameters.getGeno_Inverse() == "recursion")
+            {
+                newgenomicrecursion(SimParameters,relationshipsize,sprelationshipinv,animal,OUTPUTFILES,logfileloc);
+            }
+            if(SimParameters.getGeno_Inverse() == "cholesky")
+            {
+                newgenomiccholesky(SimParameters,relationshipsize,sprelationshipinv,animal,OUTPUTFILES,logfileloc);
+            }
         }
         if(SimParameters.getEBV_Calc() == "gblup")
         {
-            double propgeno = proportiongenotyped(SimParameters,GenotypeStatus_path);
+            double propgeno = proportiongenotyped(SimParameters,OUTPUTFILES);
             if(propgeno != 1)
             {
                 cout << endl << "Mix of genotyped and non-genotyped animals so shouldn't be at pblup option ebv estimation" << endl;
@@ -1465,9 +1019,15 @@ void Generate_BLUP_EBV(parameters &SimParameters,vector <Animal> &population, ve
             }
             if(SimParameters.getConstructGFreq() == "founder")
             {
-                newgenomicrelationship(SimParameters,population,Pheno_GMatrix_File,animal,Phenotype,M,scale,trainanimals,BinaryG_Matrix_File,logfileloc);
-                if(SimParameters.getGeno_Inverse() == "recursion"){newgenomicrecursion(SimParameters,relationshipsize,BinaryG_Matrix_File,Binarym_Matrix_File,Binaryp_Matrix_File,BinaryGinv_Matrix_File,sprelationshipinv,logfileloc,animal);}
-                if(SimParameters.getGeno_Inverse() == "cholesky"){newgenomiccholesky(SimParameters,relationshipsize,BinaryG_Matrix_File,BinaryLinv_Matrix_File,BinaryGinv_Matrix_File,sprelationshipinv,logfileloc,animal);}
+                newgenomicrelationship(SimParameters,population,animal,Phenotype,M,scale,trainanimals,OUTPUTFILES,logfileloc);
+                if(SimParameters.getGeno_Inverse() == "recursion")
+                {
+                    newgenomicrecursion(SimParameters,relationshipsize,sprelationshipinv,animal,OUTPUTFILES,logfileloc);
+                }
+                if(SimParameters.getGeno_Inverse() == "cholesky")
+                {
+                    newgenomiccholesky(SimParameters,relationshipsize,sprelationshipinv,animal,OUTPUTFILES,logfileloc);
+                }
             }
             if(SimParameters.getConstructGFreq() == "observed")
             {
@@ -1475,21 +1035,21 @@ void Generate_BLUP_EBV(parameters &SimParameters,vector <Animal> &population, ve
                 double* Mobs = new double[3*(population[0].getMarker()).size()]; /* Dimension 3 by number of markers */
                 float scaleobs =  update_M_scale(SimParameters,population,Mobs);
                 logfileloc << "       - G constructed based on observed (i.e. selection candidate) allele frequencies." << endl;
-                //cout << scaleobs << endl;
-                //for(int i = 0; i < 5; i++)
-                //{
-                //    for(int j = 0; j < 3; j++){cout << Mobs[(j*(population[0].getMarker()).size())+i] << " ";}
-                //    cout << endl;
-                //}
-                newgenomicrelationship(SimParameters,population,Pheno_GMatrix_File,animal,Phenotype,M,scale,trainanimals,BinaryG_Matrix_File,logfileloc);
+                newgenomicrelationship(SimParameters,population,animal,Phenotype,M,scale,trainanimals,OUTPUTFILES,logfileloc);
                 delete [] Mobs;
-                if(SimParameters.getGeno_Inverse() == "recursion"){newgenomicrecursion(SimParameters,relationshipsize,BinaryG_Matrix_File,Binarym_Matrix_File,Binaryp_Matrix_File,BinaryGinv_Matrix_File,sprelationshipinv,logfileloc,animal);}
-                if(SimParameters.getGeno_Inverse() == "cholesky"){newgenomiccholesky(SimParameters,relationshipsize,BinaryG_Matrix_File,BinaryLinv_Matrix_File,BinaryGinv_Matrix_File,sprelationshipinv,logfileloc,animal);}
+                if(SimParameters.getGeno_Inverse() == "recursion")
+                {
+                    newgenomicrecursion(SimParameters,relationshipsize,sprelationshipinv,animal,OUTPUTFILES,logfileloc);
+                }
+                if(SimParameters.getGeno_Inverse() == "cholesky")
+                {
+                    newgenomiccholesky(SimParameters,relationshipsize,sprelationshipinv,animal,OUTPUTFILES,logfileloc);
+                }
             }
         }
         if(SimParameters.getEBV_Calc() == "ssgblup")
         {
-            double propgeno = proportiongenotyped(SimParameters,GenotypeStatus_path);
+            double propgeno = proportiongenotyped(SimParameters,OUTPUTFILES);
             /* Genotyped proportion has to be either 0 (i.e. no genotypes) or any value below 1.0 (i.e. all genotyped) */
             /* It can't be all genotyped because that would be gblup, rohblup or a bayes option */
             if(propgeno == 1.0)
@@ -1501,25 +1061,32 @@ void Generate_BLUP_EBV(parameters &SimParameters,vector <Animal> &population, ve
             {
                 logfileloc << "       - Begin Constructing Sparse A-Inverse (i.e. No animals are genotyped)." << endl;
                 time_t start = time(0); vector <double> pedigreeinb(animal.size());
-                Setup_SpmeuwissenluoAinv(Pheno_Pedigree_File,animal,Phenotype,trainanimals,sprelationshipinv,pedigreeinb,logfileloc);
+                Setup_SpmeuwissenluoAinv(animal,Phenotype,trainanimals,sprelationshipinv,pedigreeinb,OUTPUTFILES,logfileloc);
                 updateinbreeding(population,animal,pedigreeinb);            /* Update inbreeding for animal */
                 time_t end = time(0);
                 logfileloc<< "       - Finished Constructing Sparse Ainverse.\n"<<"               - Took: "<<difftime(end,start)<<" seconds."<<endl;
             }
             if(propgeno > 0.0 && propgeno < 1.0)
             {
+                if(SimParameters.getImputationFile() != "nofile")
+                {
+                    logfileloc << "       - Begin SNP Imputation using the following script '" << SimParameters.getImputationFile() << "'" << endl;
+                    //exit (EXIT_FAILURE);
+                    string command = "./"+SimParameters.getImputationFile()+"> file1.txt";
+                    system(command.c_str()); system("rm file1.txt");
+                }
                 logfileloc << "       - Begin Constructing H Inverse." << endl;
                 logfileloc << "            - Proportion of population genotyped: " << propgeno << "." << endl;
                 time_t start = time(0);
-                H_inverse_function(SimParameters,population,Pheno_Pedigree_File,Pheno_GMatrix_File,GenotypeStatus_path,animal,Phenotype,trainanimals,sprelationshipinv,logfileloc);
-                Inbreeding_Pedigree(population,Pheno_Pedigree_File);        /* Still need to calculate pedigree inbreeding so do it now */
+                H_inverse_function(SimParameters,population,animal,Phenotype,trainanimals,sprelationshipinv,OUTPUTFILES,logfileloc);
+                Inbreeding_Pedigree(population,OUTPUTFILES);        /* Still need to calculate pedigree inbreeding so do it now */
                 time_t end = time(0);
                 logfileloc << "       - Finished Constructing Hinv.\n"<<"               - Took: "<<difftime(end,start)<<" seconds."<<endl;
             }
         }
         if(SimParameters.getEBV_Calc() == "pblup")
         {
-            double propgeno = proportiongenotyped(SimParameters,GenotypeStatus_path);
+            double propgeno = proportiongenotyped(SimParameters,OUTPUTFILES);
             if(propgeno != 0)
             {
                 cout << endl << "Mix of genotyped and non-genotyped animals so shouldn't be at pblup option ebv estimation" << endl;
@@ -1527,52 +1094,75 @@ void Generate_BLUP_EBV(parameters &SimParameters,vector <Animal> &population, ve
             }
             logfileloc << "       - Begin Constructing Sparse A-Inverse." << endl;
             time_t start = time(0); vector <double> pedigreeinb(animal.size());
-            Setup_SpmeuwissenluoAinv(Pheno_Pedigree_File,animal,Phenotype,trainanimals,sprelationshipinv,pedigreeinb,logfileloc);
+            Setup_SpmeuwissenluoAinv(animal,Phenotype,trainanimals,sprelationshipinv,pedigreeinb,OUTPUTFILES,logfileloc);
             /* Calculate inbreeding with full pedigree */
-            Inbreeding_Pedigree(population,Pheno_Pedigree_File);        /* Still need to calculate pedigree inbreeding so do it now */
+            Inbreeding_Pedigree(population,OUTPUTFILES);        /* Still need to calculate pedigree inbreeding so do it now */
             time_t end = time(0);
             logfileloc<< "       - Finished Constructing Sparse Ainverse.\n"<<"               - Took: "<<difftime(end,start)<<" seconds."<<endl;
         }
     }
     logfileloc << "       - Begin Solving for equations using " << SimParameters.getSolver() << " method." << endl;
-    Setup_blup(SimParameters,population,sprelationshipinv,Phenotype,animal,scalinglambda,estimatedsolutions,trueaccuracy,logfileloc);
+    Setup_blup(SimParameters,population,sprelationshipinv,Phenotype,animal,scalinglambda,estimatedsolutions,trueaccuracy,logfileloc,OUTPUTFILES);
 }
 /****************************************************************/
 /* Feeds into Meuwissen_Luo Ainverse assume animals go from 1:n */
 /****************************************************************/
-void Setup_SpmeuwissenluoAinv(string Pheno_Pedigree_File, vector <int> &animal, vector <double> &Phenotype,  vector <int> &trainanimals,vector < tuple <int,int,double> > &sprelationshipinv,vector <double> &pedigreeinb, ostream& logfileloc)
+void Setup_SpmeuwissenluoAinv(vector <int> &animal, vector <double> &Phenotype, vector <int> &trainanimals,vector < tuple <int,int,double> > &sprelationshipinv,vector <double> &pedigreeinb,outputfiles &OUTPUTFILES, ostream& logfileloc)
 {
     vector <int> sire(animal.size(),0); vector <int> dam(animal.size(),0);
     /*read in Pheno_Pedigree file and store in a vector to determine how many animals their are */
     int linenumber = 0; int tempanim; int tempanimindex = 0; int indexintrainanim = 0;  /* Counter to determine where at in pedigree index's */
-    string line;
-    ifstream infile2;
-    infile2.open(Pheno_Pedigree_File.c_str());                                                  /* This file has all animals in it */
+    vector <double> trait2;
+    string line; ifstream infile2;
+    infile2.open(OUTPUTFILES.getloc_Pheno_Pedigree().c_str());                                                  /* This file has all animals in it */
     if(infile2.fail()){cout << "Error Opening File To Make Pedigree Relationship Matrix\n"; exit (EXIT_FAILURE);}
     while (getline(infile2,line))
     {
-        size_t pos = line.find(" ", 0); tempanim = (std::stoi(line.substr(0,pos)));
+        vector < string > variables(5,"");
+        for(int i = 0; i < 5; i++)
+        {
+            size_t pos = line.find(" ",0); variables[i] = line.substr(0,pos);
+            if(pos != std::string::npos){line.erase(0, pos + 1);}
+            if(pos == std::string::npos){line.clear();}
+        }
+        int start = 0;
+        while(start < variables.size())
+        {
+            if(variables[start] == ""){variables.erase(variables.begin()+start);}
+            if(variables[start] != ""){start++;}
+        }
+        tempanim = stoi(variables[0].c_str());
         if(trainanimals.size() == 0)
         {
-            animal[tempanimindex] = tempanim; line.erase(0, pos + 1);   /* Grab animal id */
-            pos = line.find(" ",0); sire[tempanimindex] = stoi(line.substr(0,pos)); line.erase(0, pos + 1);             /* Grab Sire ID */
-            //if(sire[tempanimindex] < animgreatkeep){sire[tempanimindex] = 0;}
-            pos = line.find(" ",0); dam[tempanimindex] = stoi(line.substr(0,pos)); line.erase(0, pos + 1);              /* Grab Dam ID */
-            //if(dam[tempanimindex] < animgreatkeep){dam[tempanimindex] = 0;}
-            Phenotype[tempanimindex] = stod(line); tempanimindex++;                                                     /* Grab Phenotype */
+            if(variables.size() == 4){                              /* Single Trait Analysis */
+                animal[tempanimindex] = tempanim; sire[tempanimindex] = stoi(variables[1].c_str());
+                dam[tempanimindex] = stoi(variables[2].c_str()); Phenotype[tempanimindex] = stod(variables[3].c_str());
+            } else if(variables.size() == 5){                      /* Bivariate Analysis */
+                animal[tempanimindex] = tempanim; sire[tempanimindex] = stoi(variables[1].c_str());
+                dam[tempanimindex] = stoi(variables[2].c_str()); Phenotype[tempanimindex] = stod(variables[3].c_str());
+                trait2.push_back(stod(variables[4].c_str()));
+            } else {cout << "Shouldn't Be Here!! E-mail Developer." << endl; exit (EXIT_FAILURE);}
+            tempanimindex++;
         } else {
             if(tempanim == trainanimals[indexintrainanim])
             {
-                animal[tempanimindex] = tempanim; line.erase(0, pos + 1);   /* Grab animal id */
-                pos = line.find(" ",0); sire[tempanimindex] = stoi(line.substr(0,pos)); line.erase(0, pos + 1);             /* Grab Sire ID */
-                //if(sire[tempanimindex] < animgreatkeep){sire[tempanimindex] = 0;}
-                pos = line.find(" ",0); dam[tempanimindex] = stoi(line.substr(0,pos)); line.erase(0, pos + 1);              /* Grab Dam ID */
-                //if(dam[tempanimindex] < animgreatkeep){dam[tempanimindex] = 0;}
-                Phenotype[tempanimindex] = stod(line); tempanimindex++;                                                     /* Grab Phenotype */
-                indexintrainanim++;
+                if(variables.size() == 4){                              /* Single Trait Analysis */
+                    animal[tempanimindex] = tempanim; sire[tempanimindex] = stoi(variables[1].c_str());
+                    dam[tempanimindex] = stoi(variables[2].c_str()); Phenotype[tempanimindex] = stod(variables[3].c_str());
+                } else if(variables.size() == 5){                      /* Bivariate Analysis */
+                    animal[tempanimindex] = tempanim; sire[tempanimindex] = stoi(variables[1].c_str());
+                    dam[tempanimindex] = stoi(variables[2].c_str()); Phenotype[tempanimindex] = stod(variables[3].c_str());
+                    trait2.push_back(stod(variables[4].c_str()));
+                } else {cout << "Shouldn't Be Here!! E-mail Developer." << endl; exit (EXIT_FAILURE);}
+                tempanimindex++; indexintrainanim++;
             }
         }
         linenumber++;
+    }
+    if(trait2.size() > 0)
+    {
+        if(trait2.size() == Phenotype.size()){for(int i = 0; i < trait2.size(); i++){Phenotype.push_back(trait2[i]);}
+        } else {cout << "Shouldn't Be Here!! E-mail Developer." << endl; exit (EXIT_FAILURE);}
     }
     /* if trainanimals size greater than 0 than truncation occured need to renumber animals to go from 1 to n */
     if(trainanimals.size() > 0 )
@@ -1607,48 +1197,350 @@ void Setup_SpmeuwissenluoAinv(string Pheno_Pedigree_File, vector <int> &animal, 
 /*********************************************************/
 /* Setup sparse pblup, gblup or rohblup representation   */
 /*********************************************************/
-void Setup_blup(parameters &SimParameters,vector <Animal> &population,vector < tuple <int,int,double> > &sprelationshipinv,vector <double> &Phenotype,vector <int> &animal,double scalinglambda,vector <double> &estimatedsolutions, vector <double> &trueaccuracy,ostream& logfileloc)
+void Setup_blup(parameters &SimParameters,vector <Animal> &population,vector < tuple <int,int,double> > &sprelationshipinv,vector <double> &Phenotype,vector <int> &animal,double scalinglambda,vector <double> &estimatedsolutions, vector <double> &trueaccuracy,ostream& logfileloc,outputfiles &OUTPUTFILES)
 {
-    vector < int > hasphenotype(animal.size(),1);       /* Initialize as everyone animal has a phenotype */
-    if(SimParameters.getAtSelectionHas() != "phenotype")    /* Some animals may not have phenotypes information */
+    /* Figure out whether animal has a phenotype or not */
+    vector < vector < int >> hasphenotype;          /* Indicator on whether animal has a phenotype or not */
+    string line; int tempid;
+    ifstream infile;
+    infile.open(OUTPUTFILES.getloc_GenotypeStatus().c_str());
+    if(infile.fail()){cout << "GenotypeStatus!\n"; exit (EXIT_FAILURE);}
+    while (getline(infile,line))
     {
-        phenotypestatus(SimParameters,population,animal,hasphenotype);
+        vector < string > solvervariables(20,"");            /* expect 2 */
+        for(int i = 0; i < 20; i++)
+        {
+            size_t pos = line.find(" ",0);
+            solvervariables[i] = line.substr(0,pos);
+            if(pos != std::string::npos){line.erase(0, pos + 1);}
+            if(pos == std::string::npos){line.clear();}
+        }
+        int start = 0;
+        while(start < solvervariables.size())
+        {
+            if(solvervariables[start] == ""){solvervariables.erase(solvervariables.begin()+start);}
+            if(solvervariables[start] != ""){start++;}
+        }
+        //cout << solvervariables.size() << endl;
+        //for(int i = 0; i < solvervariables.size(); i++){cout << solvervariables[i] << endl;}
+        if(solvervariables.size() == 9){
+            if(solvervariables[3] == "Yes"){
+                vector < int > temp(1,1); hasphenotype.push_back(temp);
+            } else if(solvervariables[3] == "No"){
+                vector < int > temp(1,0); hasphenotype.push_back(temp);
+            } else {cout << endl << "Error reading in geno-pheno status file!" << endl; exit (EXIT_FAILURE);}
+        } else if(solvervariables.size() == 10){
+            vector < int > temp;
+            /* update trait 1*/
+            if(solvervariables[3] == "Yes"){
+                temp.push_back(1);
+            } else if(solvervariables[3] == "No"){
+                temp.push_back(0);
+            } else {cout << endl << "Error reading in geno-pheno status file (Trait1)!" << endl; exit (EXIT_FAILURE);}
+            /* update trait 2*/
+            if(solvervariables[4] == "Yes"){
+                temp.push_back(1);
+            } else if(solvervariables[4] == "No"){
+                temp.push_back(0);
+            } else {cout << endl << "Error reading in geno-pheno status file (Trait2)!" << endl; exit (EXIT_FAILURE);}
+            hasphenotype.push_back(temp);
+        } else {cout << endl << "Shouldn't Be Here " << endl; exit (EXIT_FAILURE);}
     }
-    int LHSsize = animal.size() + 1;
+    /*****************************************************************************/
+    /***           Number of Animals with Phenotypes across Traits             ***/
+    /*****************************************************************************/
+    vector <int> NumbPhen(hasphenotype[0].size(),0);
+    for(int i = 0; i < hasphenotype.size(); i++)
+    {
+        for(int j = 0; j < hasphenotype[0].size(); j++){NumbPhen[j] += hasphenotype[i][j];}
+    }
+    for(int i = 0; i < hasphenotype[0].size(); i++){logfileloc << "           - Number of Phenotypes for Trait " << i+1 << ": " << NumbPhen[i] << "." << endl;}
+    int LHSsize;
+    if(animal.size() == Phenotype.size()){LHSsize = Phenotype.size() + 1;}
+    if(2*(animal.size()) == Phenotype.size()){LHSsize = Phenotype.size() + 2;}
     if(estimatedsolutions.size() == 0)
     {
         for(int i = 0; i < LHSsize; i++)
         {
             estimatedsolutions.push_back(0.0);
-            if(i > 0){trueaccuracy.push_back(0.0);}
+            if(animal.size() == Phenotype.size() && i > 0){trueaccuracy.push_back(0.0);}
+            if(2*(animal.size()) == Phenotype.size() && i > 1){trueaccuracy.push_back(0.0);}
         }
     }
-    /***************************/
-    /* Setup LHS in Tuple Form */
-    /***************************/
-    vector < tuple <int,int,double> > lhs_sparse; double tempvalue;
-    double interc = 0;
-    for(int i = 0; i < animal.size(); i++){interc += hasphenotype[i];}
-    lhs_sparse.push_back(std::make_tuple(0,0,interc));                                                  /* Fill intercept (X'X) */
-    for(int i = 1; i < LHSsize; i++){lhs_sparse.push_back(std::make_tuple(0,i,hasphenotype[i-1]));}     /* Fill intercept-animal (X'Z) */
-    for(int i = 1; i < LHSsize; i++){lhs_sparse.push_back(std::make_tuple(i,0,hasphenotype[i-1]));}     /* Fill intercept-animal (Z'X) */
-    for(int i = 1; i < LHSsize; i++){lhs_sparse.push_back(std::make_tuple(i,i,hasphenotype[i-1]));}     /* Fill intercept-animal (Z'Z) */
-    for(int i = 0; i < sprelationshipinv.size(); i++)                                   /* Fill Relationshipinv*alpha */
+    vector < tuple <int,int,double> > lhs_sparse; vector < double > rhs_sparse (LHSsize,0.0);
+    if(animal.size() == Phenotype.size())
     {
-        tempvalue = get<2>(sprelationshipinv[i]) * double(scalinglambda);
-        lhs_sparse.push_back(std::make_tuple((get<0>(sprelationshipinv[i])+1),(get<1>(sprelationshipinv[i])+1),tempvalue));
+        double tempvalue;
+        /***************************/
+        /* Setup LHS in Tuple Form */
+        /***************************/
+        double interc = 0;
+        for(int i = 0; i < animal.size(); i++){interc += hasphenotype[i][0];}
+        lhs_sparse.push_back(std::make_tuple(0,0,interc));                                                  /* Fill intercept (X'X) */
+        for(int i = 1; i < LHSsize; i++){lhs_sparse.push_back(std::make_tuple(0,i,hasphenotype[i-1][0]));}     /* Fill intercept-animal (X'Z) */
+        for(int i = 1; i < LHSsize; i++){lhs_sparse.push_back(std::make_tuple(i,0,hasphenotype[i-1][0]));}     /* Fill intercept-animal (Z'X) */
+        for(int i = 1; i < LHSsize; i++){lhs_sparse.push_back(std::make_tuple(i,i,hasphenotype[i-1][0]));}     /* Fill intercept-animal (Z'Z) */
+        for(int i = 0; i < sprelationshipinv.size(); i++)                                   /* Fill Relationshipinv*alpha */
+        {
+            tempvalue = get<2>(sprelationshipinv[i]) * double(scalinglambda);
+            lhs_sparse.push_back(std::make_tuple((get<0>(sprelationshipinv[i])+1),(get<1>(sprelationshipinv[i])+1),tempvalue));
+        }
+        /***************************************/
+        /* Setup RHS as a vector in Tuple Form */
+        /***************************************/
+        for(int i = 0; i < animal.size(); i++)                      /* row 1 of RHS is sum of phenotypic observations */
+        {
+            if(hasphenotype[i][0] != 0){rhs_sparse[0] += Phenotype[i];}
+        }
+        for(int i = 0; i < animal.size(); i++)                      /* Copy animals with phenotype to RHS */
+        {
+            if(hasphenotype[i][0] != 0){rhs_sparse[i+1] = Phenotype[i];}
+        }
     }
-    /***************************************/
-    /* Setup RHS as a vector in Tuple Form */
-    /***************************************/
-    vector < double > rhs_sparse (LHSsize,0.0);
-    for(int i = 0; i < animal.size(); i++)                      /* row 1 of RHS is sum of phenotypic observations */
+    if(2*(animal.size()) == Phenotype.size())
     {
-        if(hasphenotype[i] != 0){rhs_sparse[0] += Phenotype[i];}
-    }
-    for(int i = 0; i < animal.size(); i++)                      /* Copy animals with phenotype to RHS */
-    {
-        if(hasphenotype[i] != 0){rhs_sparse[i+1] = Phenotype[i];}
+        /** Bivariate Model; First set up R and G inverse by using Gauss-Jordan Matrix Inversion **/
+        vector<vector<double> > Ginv(2,vector<double>(2,0.0));
+        vector<vector<double> > Rinv(2,vector<double>(2,0.0));
+        Ginv[0][0] = (SimParameters.get_Var_Additive())[0]; Ginv[1][1] = (SimParameters.get_Var_Additive())[2];
+        Ginv[0][1] = Ginv[1][0] = (SimParameters.get_Var_Additive())[1] * sqrt((SimParameters.get_Var_Additive())[0] * (SimParameters.get_Var_Additive())[2]);
+        Rinv[0][0] = (SimParameters.get_Var_Residual())[0]; Rinv[1][1] = (SimParameters.get_Var_Residual())[2];
+        Rinv[0][1] = Rinv[1][0] = (SimParameters.get_Var_Residual())[1] * sqrt((SimParameters.get_Var_Residual())[0] * (SimParameters.get_Var_Residual())[2]);
+        //Ginv[0][1] = 0.0; Ginv[1][0] = 0.0;
+        //for(int i = 0; i < 2; i++)
+        //{
+        //    for(int j = 0; j < 2; j++){cout << Ginv[i][j] << " ";}
+        //    cout << endl;
+        //}
+        //cout << endl;
+        //for(int i = 0; i < 2; i++)
+        //{
+        //    for(int j = 0; j < 2; j++){cout << Rinv[i][j] << " ";}
+        //   cout << endl;
+        //}
+        //cout << endl << endl;
+        Gauss_Jordan_Inverse(Ginv); Gauss_Jordan_Inverse(Rinv);
+        /* If both phenotypes observed in offspring; R structure is straightforward */
+        if((SimParameters.get_MaleWhoPhenotype_vec())[0] == "pheno_atselection" && (SimParameters.get_FemaleWhoPhenotype_vec())[0] == "pheno_atselection" &&
+           (SimParameters.get_MaleWhoPhenotype_vec())[1] == "pheno_atselection" && (SimParameters.get_FemaleWhoPhenotype_vec())[1] == "pheno_atselection" &&
+           (SimParameters.get_MalePropPhenotype_vec())[0]==1.0 && (SimParameters.get_FemalePropPhenotype_vec())[0]==1.0 && (SimParameters.get_MalePropPhenotype_vec())[1]==1.0 && (SimParameters.get_FemalePropPhenotype_vec())[1]==1.0)
+        {
+            /***************************/
+            /* Setup LHS in Tuple Form */
+            /***************************/
+            /* X'X Portion */
+            double interc = 0;
+            for(int i = 0; i < animal.size(); i++){interc += Rinv[0][0];}
+            lhs_sparse.push_back(std::make_tuple(0,0,interc));                                                          /* Fill X(1,1) = sum (1*r(0,0) */
+            interc = 0;
+            for(int i = 0; i < animal.size(); i++){interc += Rinv[0][1];}
+            lhs_sparse.push_back(std::make_tuple(0,1,interc));                                                          /* Fill X(1,2) = sum (1*r(0,1) */
+            lhs_sparse.push_back(std::make_tuple(1,0,interc));                                                          /* Fill X(2,1) = sum (1*r(1,0) */
+            interc = 0;
+            for(int i = 0; i < animal.size(); i++){interc += Rinv[1][1];}
+            lhs_sparse.push_back(std::make_tuple(1,1,interc));                                                          /* Fill X(2,2) = sum (1*r(1,1) */
+            /* X'Z and Z'X Portion */
+            for(int i = 2; i < (animal.size()+2); i++)                                                                  /* Fill intercept1-animal1 = r(0,0) */
+            {
+                lhs_sparse.push_back(std::make_tuple(0,i,Rinv[0][0])); lhs_sparse.push_back(std::make_tuple(i,0,Rinv[0][0]));
+            }
+            for(int i = (animal.size()+2); i < LHSsize; i++)                                                            /* Fill intercept1-animal2 = r(0,1) */
+            {
+                lhs_sparse.push_back(std::make_tuple(0,i,Rinv[0][1])); lhs_sparse.push_back(std::make_tuple(i,0,Rinv[0][1]));
+            }
+            for(int i = 2; i < (animal.size()+2); i++)                                                                  /* Fill intercept2-animal1 = r(1,0) */
+            {
+                lhs_sparse.push_back(std::make_tuple(1,i,Rinv[1][0])); lhs_sparse.push_back(std::make_tuple(i,1,Rinv[1][0]));
+            }
+            for(int i = (animal.size()+2); i < LHSsize; i++)                                                            /* Fill intercept2-animal2 = r(0,1) */
+            {
+                lhs_sparse.push_back(std::make_tuple(1,i,Rinv[1][1])); lhs_sparse.push_back(std::make_tuple(i,1,Rinv[1][1]));
+            }
+            /* Z'Z + Ainv * G Portion */
+            double tempvalue;
+            for(int i = 0; i < sprelationshipinv.size(); i++)                                   /* Fill Relationshipinv*G + R for each portion */
+            {
+                /* Z1Z1 */
+                tempvalue = get<2>(sprelationshipinv[i]) * double(Ginv[0][0]);
+                lhs_sparse.push_back(std::make_tuple((get<0>(sprelationshipinv[i])+2),(get<1>(sprelationshipinv[i])+2),tempvalue));
+                /* Z1Z2 and Z2Z1 */
+                tempvalue = get<2>(sprelationshipinv[i]) * double(Ginv[0][1]);
+                lhs_sparse.push_back(std::make_tuple((get<0>(sprelationshipinv[i])+2),(get<1>(sprelationshipinv[i])+(2+animal.size())),tempvalue));
+                lhs_sparse.push_back(std::make_tuple((get<1>(sprelationshipinv[i])+(2+animal.size())),(get<0>(sprelationshipinv[i])+2),tempvalue));
+                /* Z2Z2 */
+                tempvalue = get<2>(sprelationshipinv[i]) * double(Ginv[1][1]);
+                lhs_sparse.push_back(std::make_tuple((get<0>(sprelationshipinv[i])+(2+animal.size())),(get<1>(sprelationshipinv[i])+(2+animal.size())),tempvalue));
+            }
+            /* Now add residual to each part of Z'Z */
+            for(int i = 0; i < animal.size(); i++){lhs_sparse.push_back(std::make_tuple(i+2,i+2,Rinv[0][0]));}
+            for(int i = 0; i < animal.size(); i++){lhs_sparse.push_back(std::make_tuple(i+2,(i+2+(animal.size())),Rinv[0][1]));}
+            for(int i = 0; i < animal.size(); i++){lhs_sparse.push_back(std::make_tuple((i+2+(animal.size())),i+2,Rinv[1][0]));}
+            for(int i = 0; i < animal.size(); i++){lhs_sparse.push_back(std::make_tuple((i+2+(animal.size())),(i+2+(animal.size())),Rinv[1][1]));}
+            /*************************/
+            /* Setup RHS as a vector */
+            /*************************/
+            for(int i = 0; i < animal.size(); i++)
+            {
+                rhs_sparse[0] += (Rinv[0][0] * Phenotype[i]) + (Rinv[0][1] * Phenotype[i+animal.size()]);       /* R11 * p1 + R12*p2  */
+                rhs_sparse[1] += (Rinv[1][0] * Phenotype[i]) + (Rinv[1][1] * Phenotype[i+animal.size()]);       /* R21 * p1 + R22*p2  */
+            }
+            for(int i = 0; i < animal.size(); i++)
+            {
+                rhs_sparse[i+2] = (Rinv[0][0]*Phenotype[i]) + (Rinv[0][1]*Phenotype[i+animal.size()]);
+                rhs_sparse[i+2+animal.size()] = (Rinv[1][0]*Phenotype[i]) + (Rinv[1][1]*Phenotype[i+animal.size()]);
+            }
+        } else {
+        /* If both one or both phenotypes not observed in offspring; R structure is not straightforward */
+            /* if have both trait (hasphenotype[i][0] = 1 & hasphenotype[i][1] = 1 */
+            double missingtrait2 = 1 / double((SimParameters.get_Var_Residual())[0]);
+            double missingtrait1 = 1 / double((SimParameters.get_Var_Residual())[2]);
+            /***************************/
+            /* Setup LHS in Tuple Form */
+            /***************************/
+            /* X'X Portion */
+            int bothtrt = 0; int trt1only = 0; int trt2only = 0; int nopheno = 0;
+            double interc = 0;
+            for(int i = 0; i < animal.size(); i++)
+            {
+                if(hasphenotype[i][0] == 1 && hasphenotype[i][1] == 1){interc += Rinv[0][0]; bothtrt++;}            /* Has both traits */
+                if(hasphenotype[i][0] == 1 && hasphenotype[i][1] == 0){interc += missingtrait2; trt1only++;}        /* Missing trait 2 */
+            }
+            lhs_sparse.push_back(std::make_tuple(0,0,interc));                                                      /* Fill X(1,1) */
+            //cout << bothtrt << " " << trt1only << " " << trt2only << " " << nopheno << endl;
+            interc = 0; bothtrt = 0; trt1only = 0; trt2only = 0; nopheno = 0;
+            for(int i = 0; i < animal.size(); i++)
+            {
+                if(hasphenotype[i][0] == 1 && hasphenotype[i][1] == 1){interc += Rinv[0][1]; bothtrt++;}            /* Has both traits */
+            }
+            //cout << bothtrt << " " << trt1only << " " << trt2only << " " << nopheno << endl;
+            lhs_sparse.push_back(std::make_tuple(0,1,interc));                                                      /* Fill X(1,2) */
+            lhs_sparse.push_back(std::make_tuple(1,0,interc));                                                      /* Fill X(2,1) */
+            interc = 0; bothtrt = 0; trt1only = 0; trt2only = 0; nopheno = 0;
+            for(int i = 0; i < animal.size(); i++)
+            {
+                if(hasphenotype[i][0] == 1 && hasphenotype[i][1] == 1){interc += Rinv[1][1]; bothtrt++;}            /* Has both traits */
+                if(hasphenotype[i][0] == 0 && hasphenotype[i][1] == 1){interc += missingtrait1; trt2only++;}        /* Missing trait 1 */
+            }
+            lhs_sparse.push_back(std::make_tuple(1,1,interc));                                                      /* Fill X(2,2) */
+            /* X'Z and Z'X Portion */
+            for(int i = 2; i < (animal.size()+2); i++)                                                              /* Fill intercept1-animal1 */
+            {
+                if(hasphenotype[i-2][0] == 1 && hasphenotype[i-2][1] == 1)                                          /* Has both traits */
+                {
+                    lhs_sparse.push_back(std::make_tuple(0,i,Rinv[0][0])); lhs_sparse.push_back(std::make_tuple(i,0,Rinv[0][0]));
+                }
+                if(hasphenotype[i-2][0] == 1 && hasphenotype[i-2][1] == 0)                                          /* Missing trait 2 */
+                {
+                    lhs_sparse.push_back(std::make_tuple(0,i,missingtrait2)); lhs_sparse.push_back(std::make_tuple(i,0,missingtrait2));
+                }
+            }
+            for(int i = (animal.size()+2); i < LHSsize; i++)                                                        /* Fill intercept1-animal2 */
+            {
+                if(hasphenotype[i-(animal.size()+2)][0] == 1 && hasphenotype[i-(animal.size()+2)][1] == 1)          /* Has both traits */
+                {
+                    lhs_sparse.push_back(std::make_tuple(0,i,Rinv[0][1])); lhs_sparse.push_back(std::make_tuple(i,0,Rinv[0][1]));
+                }
+            }
+            for(int i = 2; i < (animal.size()+2); i++)                                                               /* Fill intercept2-animal1 */
+            {
+                if(hasphenotype[i-2][0] == 1 && hasphenotype[i-2][1] == 1)                                           /* Has both traits */
+                {
+                    lhs_sparse.push_back(std::make_tuple(1,i,Rinv[1][0])); lhs_sparse.push_back(std::make_tuple(i,1,Rinv[1][0]));
+                }
+            }
+            for(int i = (animal.size()+2); i < LHSsize; i++)                                                         /* Fill intercept2-animal2 = r(0,1) */
+            {
+                if(hasphenotype[i-(animal.size()+2)][0] == 1 && hasphenotype[i-(animal.size()+2)][1] == 1)           /* Has both traits */
+                {
+                    lhs_sparse.push_back(std::make_tuple(1,i,Rinv[1][1])); lhs_sparse.push_back(std::make_tuple(i,1,Rinv[1][1]));
+                }
+                if(hasphenotype[i-(animal.size()+2)][0] == 0 && hasphenotype[i-(animal.size()+2)][1] == 1)           /* Missing trait 1 */
+                {
+                    lhs_sparse.push_back(std::make_tuple(1,i,missingtrait1)); lhs_sparse.push_back(std::make_tuple(i,1,missingtrait1));
+                }
+            }
+            /* Z'Z + Ainv * G Portion */
+            double tempvalue;
+            for(int i = 0; i < sprelationshipinv.size(); i++)                                   /* Fill Relationshipinv*G + R for each portion */
+            {
+                /* Z1Z1 */
+                tempvalue = get<2>(sprelationshipinv[i]) * double(Ginv[0][0]);
+                lhs_sparse.push_back(std::make_tuple((get<0>(sprelationshipinv[i])+2),(get<1>(sprelationshipinv[i])+2),tempvalue));
+                /* Z1Z2 and Z2Z1 */
+                tempvalue = get<2>(sprelationshipinv[i]) * double(Ginv[0][1]);
+                lhs_sparse.push_back(std::make_tuple((get<0>(sprelationshipinv[i])+2),(get<1>(sprelationshipinv[i])+(2+animal.size())),tempvalue));
+                lhs_sparse.push_back(std::make_tuple((get<1>(sprelationshipinv[i])+(2+animal.size())),(get<0>(sprelationshipinv[i])+2),tempvalue));
+                /* Z2Z2 */
+                tempvalue = get<2>(sprelationshipinv[i]) * double(Ginv[1][1]);
+                lhs_sparse.push_back(std::make_tuple((get<0>(sprelationshipinv[i])+(2+animal.size())),(get<1>(sprelationshipinv[i])+(2+animal.size())),tempvalue));
+            }
+            /* Now add residual to each part of Z'Z */
+            for(int i = 0; i < animal.size(); i++)                                                                  /* Fill Z(1,1) */
+            {
+                if(hasphenotype[i][0] == 1 && hasphenotype[i][1] == 1){lhs_sparse.push_back(std::make_tuple(i+2,i+2,Rinv[0][0]));}      /* Has both traits */
+                if(hasphenotype[i][0] == 1 && hasphenotype[i][1] == 0){lhs_sparse.push_back(std::make_tuple(i+2,i+2,missingtrait2));}   /* Missing trait 2 */
+            }
+            for(int i = 0; i < animal.size(); i++)                                                                  /* Fill Z(1,2) */
+            {
+                if(hasphenotype[i][0] == 1 && hasphenotype[i][1] == 1)                                          /* Has both traits */
+                {
+                    lhs_sparse.push_back(std::make_tuple(i+2,(i+2+(animal.size())),Rinv[0][1]));
+                }
+            }
+            for(int i = 0; i < animal.size(); i++)                                                                  /* Fill Z(2,1) */
+            {
+                if(hasphenotype[i][0] == 1 && hasphenotype[i][1] == 1)                                          /* Has both traits */
+                {
+                    lhs_sparse.push_back(std::make_tuple((i+2+(animal.size())),i+2,Rinv[1][0]));
+                }
+            }
+            for(int i = 0; i < animal.size(); i++)
+            {
+                if(hasphenotype[i][0] == 1 && hasphenotype[i][1] == 1)
+                {
+                    lhs_sparse.push_back(std::make_tuple((i+2+(animal.size())),(i+2+(animal.size())),Rinv[1][1]));  /* Has both traits */
+                }
+                if(hasphenotype[i][0] == 0 && hasphenotype[i][1] == 1)
+                {
+                    lhs_sparse.push_back(std::make_tuple((i+2+(animal.size())),(i+2+(animal.size())),missingtrait1));  /* Missing trait 1 */
+                }
+            }
+            /*************************/
+            /* Setup RHS as a vector */
+            /*************************/
+            for(int i = 0; i < animal.size(); i++)
+            {
+                if(hasphenotype[i][0] == 1 && hasphenotype[i][1] == 1)          /* Has both traits */
+                {
+                    rhs_sparse[0] += (Rinv[0][0] * Phenotype[i]) + (Rinv[0][1] * Phenotype[i+animal.size()]);
+                    rhs_sparse[1] += (Rinv[1][0] * Phenotype[i]) + (Rinv[1][1] * Phenotype[i+animal.size()]);
+                }
+                if(hasphenotype[i][0] == 1 && hasphenotype[i][1] == 0)          /* Only trait 1 */
+                {
+                    rhs_sparse[0] += (missingtrait2 * Phenotype[i]);
+                }
+                if(hasphenotype[i][0] == 0 && hasphenotype[i][1] == 1)          /* Only trait 2 */
+                {
+                    rhs_sparse[1] += (missingtrait1 * Phenotype[i+animal.size()]);
+                }
+            }
+            for(int i = 0; i < animal.size(); i++)
+            {
+                if(hasphenotype[i][0] == 1 && hasphenotype[i][1] == 1)          /* Has both traits */
+                {
+                    rhs_sparse[i+2] = (Rinv[0][0]*Phenotype[i]) + (Rinv[0][1]*Phenotype[i+animal.size()]);
+                    rhs_sparse[i+2+animal.size()] = (Rinv[1][0]*Phenotype[i]) + (Rinv[1][1]*Phenotype[i+animal.size()]);
+                }
+                if(hasphenotype[i][0] == 1 && hasphenotype[i][1] == 0)          /* Only trait 1 */
+                {
+                    rhs_sparse[i+2] = (missingtrait2 * Phenotype[i]);
+                }
+                if(hasphenotype[i][0] == 0 && hasphenotype[i][1] == 1)          /* Only trait 2 */
+                {
+                    rhs_sparse[i+2+animal.size()] = (missingtrait1 * Phenotype[i+animal.size()]);
+                }
+            }
+        }
     }
     logfileloc << "           - RHS created, Dimension (" << LHSsize << " X " << 1 << ")." << endl;
     logfileloc << "           - LHS created, Dimension (" << LHSsize << " X " << LHSsize << ")." << endl;
@@ -1656,7 +1548,10 @@ void Setup_blup(parameters &SimParameters,vector <Animal> &population,vector < t
     {
         logfileloc << "           - Starting " << SimParameters.getSolver() << "." << endl;
         time_t start = time(0);
-        direct_solversparse(SimParameters,lhs_sparse,rhs_sparse,estimatedsolutions,trueaccuracy,LHSsize);
+        int numboftraits;
+        if(2*(animal.size()) == Phenotype.size()){numboftraits = 2;}
+        if(animal.size() == Phenotype.size()){numboftraits = 1;}
+        direct_solversparse(SimParameters,lhs_sparse,rhs_sparse,estimatedsolutions,trueaccuracy,LHSsize,numboftraits);
         time_t end = time(0);
         logfileloc << "       - Finished Solving Equations created." << endl;
         logfileloc << "               - Took: " << difftime(end,start) << " seconds." << endl;
@@ -1676,7 +1571,25 @@ void Setup_blup(parameters &SimParameters,vector <Animal> &population,vector < t
         logfileloc << "               - Took: " << difftime(end,start) << " seconds." << endl;
         delete[] solvedatiteration;
     }
-    /* Update Animal Class with EBV's and associated Accuracy (if option is direct) */
+    //for(int i = 0; i < estimatedsolutions.size(); i++){cout << estimatedsolutions[i] << " ";}
+    //cout << endl;
+    //cout << Phenotype.size() << " " << animal.size() << endl;
+    // Update Animal Class with EBV's and associated Accuracy (if option is direct), but first erase intercept terms
+    //fstream Check; Check.open("Solutions", std::fstream::out | std::fstream::trunc); Check.close();
+    //std::ofstream output9("Solutions", std::ios_base::app | std::ios_base::out);
+    /* output relationship matrix */
+    //output9 << "intercept " << estimatedsolutions[0] << " " << estimatedsolutions[1] << endl;
+    //for(int i = 0; i < animal.size(); i++)
+    //{
+    //    output9 << animal[i] << " " << estimatedsolutions[i+2] << " " << trueaccuracy[i] << " ";
+    //    output9 << estimatedsolutions[i+2+animal.size()] << " " << trueaccuracy[i+animal.size()] << endl;
+    //}
+    if(animal.size() == Phenotype.size()){estimatedsolutions.erase(estimatedsolutions.begin()+0);}
+    if(2*(animal.size()) == Phenotype.size())
+    {
+        estimatedsolutions.erase(estimatedsolutions.begin()+0);
+        estimatedsolutions.erase(estimatedsolutions.begin()+0);
+    }
     for(int i = 0; i < population.size(); i++)
     {
         int j = 0;                                                  /* Counter for population spot */
@@ -1684,51 +1597,46 @@ void Setup_blup(parameters &SimParameters,vector <Animal> &population,vector < t
         {
             if(population[i].getID() == animal[j])
             {
-                population[i].Update_EBV(estimatedsolutions[j+1]);
-                if(SimParameters.getSolver() == "direct")
+                if(animal.size() == Phenotype.size())
                 {
-                    if(SimParameters.getEBV_Calc()!="gblup" && SimParameters.getConstructGFreq()!="observed" && SimParameters.getGener()==SimParameters.getreferencegenblup())
+                    population[i].update_EBVvect(0,estimatedsolutions[j]);
+                    if(SimParameters.getnumbertraits() == 2){population[i].update_EBVvect(1,0); population[i].update_Accvect(1,0);}
+                    if(SimParameters.getSolver() == "direct")
                     {
-                        population[i].Update_Acc(trueaccuracy[j]);
+                        if(SimParameters.getEBV_Calc()!="gblup" && SimParameters.getConstructGFreq()!="observed" && SimParameters.getGener()==SimParameters.getreferencegenblup())
+                        {
+                            population[i].update_Accvect(0,trueaccuracy[j]);
+                        }
                     }
+                    break;
                 }
-                break;
+                if(2*animal.size() == Phenotype.size())
+                {
+                    population[i].update_EBVvect(0,estimatedsolutions[j]);
+                    population[i].update_EBVvect(1,estimatedsolutions[j+animal.size()]);
+                    if(SimParameters.getSolver() == "direct")
+                    {
+                        if(SimParameters.getEBV_Calc()!="gblup" && SimParameters.getConstructGFreq()!="observed" && SimParameters.getGener()==SimParameters.getreferencegenblup())
+                        {
+                            population[i].update_Accvect(0,trueaccuracy[j]);
+                            population[i].update_Accvect(1,trueaccuracy[j+animal.size()]);
+                        }
+                    }
+                    break;
+                }
             }
             j++;
         }
     }
     //for(int i = 0; i < population.size(); i++)
     //{
-    //    if(population[i].getSex() == 0)
-    //    {
-    //        cout<<population[i].getID()<<" "<<population[i].getProgeny()<<" "<<population[i].getEBV()<<" "<<population[i].getAcc()<<endl;
-    //    }
+        //if(population[i].getSex() == 0)
+        //{
+    //        cout<<population[i].getID()<<" "<<population[i].getProgeny()<<" "<<(population[i].get_EBVvect())[0]<<" "<<(population[i].get_EBVvect())[1]<< " ";
+    //        cout << (population[i].get_Accvect())[0] << " " << (population[i].get_Accvect())[1] << endl;
+        //}
     //}
-}
-/********************************************************************/
-/* Figure out the status of an animal in order to set up ZZ' of LHS */
-/********************************************************************/
-void phenotypestatus(parameters &SimParameters,vector <Animal> &population,vector <int> &animal, vector <int> &hasphenotype)
-{
-    /* Selection Candidates (i.e. Progeny Don't have phenotypes */
-    if(SimParameters.getAtSelectionHas() == "nophenotype")
-    {
-        for(int i = 0; i < population.size(); i++)
-        {
-            if(population[i].getAge() == 1)
-            {
-                int currentlookloc = animal.size()-1;
-                while(currentlookloc >= 0)
-                {
-                    if(population[i].getID() == animal[currentlookloc]){hasphenotype[currentlookloc] = 0; break;}
-                    if(population[i].getID() != animal[currentlookloc]){currentlookloc--;}
-                }
-            }
-        }
-    }
-    //int numberzero = 0;
-    //for(int i = 0; i < hasphenotype.size(); i++){if(hasphenotype[i] == 0){numberzero++;}}
-    //cout << numberzero << endl;
+    //exit (EXIT_FAILURE);
 }
 
 /*************************************************************************************/
@@ -1771,31 +1679,47 @@ void VanRaden_grm(double* input_m, vector < string > const &genotypes, double* o
 /****************************************************/
 /* Generate new haplotype based relationship matrix */
 /****************************************************/
-void newhaplotyperelationship(parameters &SimParameters,vector <Animal> &population, vector < hapLibrary > &haplib, string Pheno_GMatrix_File, vector <int> &animal, vector <double> &Phenotype, vector <int> trainanimals, string BinaryG_Matrix_File, ostream& logfileloc)
+void newhaplotyperelationship(parameters &SimParameters,vector <Animal> &population, vector < hapLibrary > &haplib,vector <int> &animal, vector <double> &Phenotype, vector <int> trainanimals,outputfiles &OUTPUTFILES,ostream& logfileloc)
 {
     using Eigen::MatrixXd; using Eigen::VectorXd;
     logfileloc << "           - Begin Constructing " << SimParameters.getEBV_Calc() << " Relationship Matrix." << endl;
     /* Before you start to make h_matrix for each haplotype first create a 2-dimensional vector with haplotype id */
     /* This way you don't have to repeat this step for each haplotype */
     time_t start = time(0);
-    vector < vector < int > > PaternalHaplotypeIDs;
-    vector < vector < int > > MaternalHaplotypeIDs;
+    vector < vector < int > > PaternalHaplotypeIDs; string PaternalHap;
+    vector < vector < int > > MaternalHaplotypeIDs; string MaternalHap;
     /* read in all animals haplotype ID's; Don't need to really worry about this getting big */
     int linenumber = 0; int indexintrainanim = 0;
-    string line; int tempanim; int tempanimindex = 0;
+    string line; int tempanim; int tempanimindex = 0; vector <double> trait2;
     ifstream infile2;
-    infile2.open(Pheno_GMatrix_File);
+    infile2.open(OUTPUTFILES.getloc_Pheno_GMatrix().c_str());
     if(infile2.fail()){cout << "Error Opening File To Make Genomic Relationship Matrix!\n"; exit (EXIT_FAILURE);}
     while (getline(infile2,line))
     {
-        size_t pos = line.find(" ", 0); tempanim = (std::stoi(line.substr(0,pos)));
+        vector < string > variables(7,"");
+        for(int i = 0; i < 7; i++)
+        {
+            size_t pos = line.find(" ",0); variables[i] = line.substr(0,pos);
+            if(pos != std::string::npos){line.erase(0, pos + 1);}
+            if(pos == std::string::npos){line.clear();}
+        }
+        int start = 0;
+        while(start < variables.size())
+        {
+            if(variables[start] == ""){variables.erase(variables.begin()+start);}
+            if(variables[start] != ""){start++;}
+        }
+        tempanim = stoi(variables[0].c_str());
         if(trainanimals.size() == 0)
         {
-            animal[tempanimindex] = (std::stoi(line.substr(0,pos))); line.erase(0, pos + 1);
-            pos = line.find(" ",0); Phenotype[tempanimindex] = (std::stod(line.substr(0,pos))); line.erase(0,pos + 1);
-            pos = line.find(" ",0); line.erase(0,pos + 1); /* Do not need marker genotypes so skip */
-            pos = line.find(" ",0); string PaternalHap = line.substr(0,pos); line.erase(0,pos + 1);
-            string MaternalHap = line;
+            if(variables.size() == 5){                              /* Single Trait Analysis */
+                animal[tempanimindex] = tempanim; Phenotype[tempanimindex] = stod(variables[1].c_str());
+                PaternalHap = variables[3]; MaternalHap = variables[4];
+            } else if(variables.size() == 6){                      /* Bivariate Analysis */
+                animal[tempanimindex] = tempanim; Phenotype[tempanimindex] = stod(variables[1].c_str());
+                trait2.push_back(stod(variables[2].c_str())); PaternalHap = variables[4]; MaternalHap = variables[5];
+            } else {cout << "Shouldn't Be Here!! E-mail Developer." << endl; exit (EXIT_FAILURE);}
+            /* Split apart into haplotype numbers */
             vector < int > temp_pat;
             string quit = "NO";
             while(quit != "YES")
@@ -1826,11 +1750,14 @@ void newhaplotyperelationship(parameters &SimParameters,vector <Animal> &populat
         } else {
             if(tempanim == trainanimals[indexintrainanim])
             {
-                animal[tempanimindex] = (std::stoi(line.substr(0,pos))); line.erase(0, pos + 1);
-                pos = line.find(" ",0); Phenotype[tempanimindex] = (std::stod(line.substr(0,pos))); line.erase(0,pos + 1);
-                pos = line.find(" ",0); line.erase(0,pos + 1); /* Do not need marker genotypes so skip */
-                pos = line.find(" ",0); string PaternalHap = line.substr(0,pos); line.erase(0,pos + 1);
-                string MaternalHap = line;
+                if(variables.size() == 5){                              /* Single Trait Analysis */
+                    animal[tempanimindex] = tempanim; Phenotype[tempanimindex] = stod(variables[1].c_str());
+                    PaternalHap = variables[3]; MaternalHap = variables[4];
+                } else if(variables.size() == 6){                       /* Bivariate Analysis */
+                    animal[tempanimindex] = tempanim; Phenotype[tempanimindex] = stod(variables[1].c_str());
+                    trait2.push_back(stod(variables[2].c_str()));  PaternalHap = variables[4]; MaternalHap = variables[5];
+                } else {cout << "Shouldn't Be Here!! E-mail Developer." << endl; exit (EXIT_FAILURE);}
+                /* Split apart into haplotype numbers */
                 vector < int > temp_pat;
                 string quit = "NO";
                 while(quit != "YES")
@@ -1862,7 +1789,11 @@ void newhaplotyperelationship(parameters &SimParameters,vector <Animal> &populat
         }
         linenumber++;
     }
-    //cout << PaternalHaplotypeIDs.size() << " " << MaternalHaplotypeIDs.size() << endl;
+    if(trait2.size() > 0)
+    {
+        if(trait2.size() == Phenotype.size()){for(int i = 0; i < trait2.size(); i++){Phenotype.push_back(trait2[i]);}
+        } else {cout << "Shouldn't Be Here!! E-mail Developer." << endl; exit (EXIT_FAILURE);}
+    }
     //for(int i = 0; i < trainanimals.size(); i++){cout << trainanimals[i] << "-" << animal[i] << "  ";}
     //cout << endl << endl;
     /* Initialize Relationship Matrix as 0.0 */
@@ -1967,12 +1898,12 @@ void newhaplotyperelationship(parameters &SimParameters,vector <Animal> &populat
     time_t end = time(0);
     logfileloc << "           - Finished constructing Genomic Relationship Matrix. " << endl;
     logfileloc << "               - Took: " << difftime(end,start) << " seconds." << endl;
-    Eigen::writebinary(BinaryG_Matrix_File.c_str(),Relationship);   /* Output Relationship Matrix into Binary for next generation */
+    Eigen::writebinary(OUTPUTFILES.getloc_BinaryG_Matrix().c_str(),Relationship);   /* Output Relationship Matrix into Binary for next generation */
 }
 /********************************************/
 /* Generate new genomic relationship matrix */
 /********************************************/
-void newgenomicrelationship(parameters &SimParameters, vector <Animal> &population, string Pheno_GMatrix_File,vector <int> &animal, vector <double> &Phenotype, double* M, float scale, vector <int> trainanimals, string BinaryG_Matrix_File, ostream& logfileloc)
+void newgenomicrelationship(parameters &SimParameters, vector <Animal> &population,vector <int> &animal, vector <double> &Phenotype, double* M, float scale, vector <int> trainanimals,outputfiles &OUTPUTFILES,ostream& logfileloc)
 {
     //for(int i = 0; i < trainanimals.size(); i++){cout << trainanimals[i] << " ";}
     //cout << endl << endl;
@@ -1983,31 +1914,58 @@ void newgenomicrelationship(parameters &SimParameters, vector <Animal> &populati
     vector < string > creategenorel;
     int linenumber = 0; int indexintrainanim = 0;
     string line; int tempanim; int tempanimindex = 0;
+    vector <double> trait2;
     ifstream infile2;
-    infile2.open(Pheno_GMatrix_File.c_str());
+    infile2.open(OUTPUTFILES.getloc_Pheno_GMatrix().c_str());
     if(infile2.fail()){cout << "Error Opening File\n";}
     while(getline(infile2,line))
     {
-        size_t pos = line.find(" ", 0); tempanim = (std::stoi(line.substr(0,pos)));
+        vector < string > variables(7,"");
+        for(int i = 0; i < 7; i++)
+        {
+            size_t pos = line.find(" ",0); variables[i] = line.substr(0,pos);
+            if(pos != std::string::npos){line.erase(0, pos + 1);}
+            if(pos == std::string::npos){line.clear();}
+        }
+        int start = 0;
+        while(start < variables.size())
+        {
+            if(variables[start] == ""){variables.erase(variables.begin()+start);}
+            if(variables[start] != ""){start++;}
+        }
+        tempanim = stoi(variables[0].c_str());
         if(trainanimals.size() == 0)
         {
-            animal[tempanimindex] = tempanim; line.erase(0, pos + 1);   /* Grab animal id */
-            pos = line.find(" ",0); Phenotype[tempanimindex] = (std::stod(line.substr(0,pos))); line.erase(0,pos + 1);     /* Grap Phenotype */
-            pos = line.find(" ",0); creategenorel.push_back(line.substr(0,pos)); tempanimindex++;                       /* Grab Marker Genotypes */
+            if(variables.size() == 5){                              /* Single Trait Analysis */
+                animal[tempanimindex] = tempanim; Phenotype[tempanimindex] = stod(variables[1].c_str());
+                creategenorel.push_back(variables[2].c_str());
+            } else if(variables.size() == 6){                      /* Bivariate Analysis */
+                animal[tempanimindex] = tempanim; Phenotype[tempanimindex] = stod(variables[1].c_str());
+                trait2.push_back(stod(variables[2].c_str())); creategenorel.push_back(variables[3].c_str());
+            } else {cout << "Shouldn't Be Here!! E-mail Developer." << endl; exit (EXIT_FAILURE);}
+            tempanimindex++;
         } else {
             if(tempanim == trainanimals[indexintrainanim])
             {
-                animal[tempanimindex] = tempanim; line.erase(0, pos + 1);   /* Grab animal id */
-                pos = line.find(" ",0); Phenotype[tempanimindex] = (std::stod(line.substr(0,pos))); line.erase(0,pos + 1);     /* Grap Phenotype */
-                pos = line.find(" ",0); creategenorel.push_back(line.substr(0,pos)); tempanimindex++;                        /* Grab Marker Genotypes */
-                indexintrainanim++;
+                if(variables.size() == 5){                              /* Single Trait Analysis */
+                    animal[tempanimindex] = tempanim; Phenotype[tempanimindex] = stod(variables[1].c_str());
+                    creategenorel.push_back(variables[2].c_str());
+                } else if(variables.size() == 6){                       /* Bivariate Analysis */
+                    animal[tempanimindex] = tempanim; Phenotype[tempanimindex] = stod(variables[1].c_str());
+                    trait2.push_back(stod(variables[2].c_str())); creategenorel.push_back(variables[3].c_str());
+                } else {cout << "Shouldn't Be Here!! E-mail Developer." << endl; exit (EXIT_FAILURE);}
+                tempanimindex++; indexintrainanim++;
             }
         }
         linenumber++;
     }
+    if(trait2.size() > 0)
+    {
+        if(trait2.size() == Phenotype.size()){for(int i = 0; i < trait2.size(); i++){Phenotype.push_back(trait2[i]);}
+        } else {cout << "Shouldn't Be Here!! E-mail Developer." << endl; exit (EXIT_FAILURE);}
+    }
     //for(int i = 0; i < trainanimals.size(); i++){cout << trainanimals[i] << "-" << animal[i] << "  ";}
     //cout << endl << endl;
-    //exit (EXIT_FAILURE);
     double *_grm_mkl = new double[creategenorel.size()*creategenorel.size()];   /* Allocate Memory for GRM */
     for(int i = 0; i < (creategenorel.size()*creategenorel.size()); i++){_grm_mkl[i] = 0.0;}
     if(SimParameters.getConstructG() == "VanRaden")
@@ -2027,7 +1985,7 @@ void newgenomicrelationship(parameters &SimParameters, vector <Animal> &populati
         for(int j = 0; j <= i; j++){Relationship(i,j) = Relationship(j,i) = _grm_mkl[(i*creategenorel.size())+j];}
     }
     /* Output Genomic Relationship Matrix into Binary for next generation */
-    Eigen::writebinary(BinaryG_Matrix_File.c_str(),Relationship);
+    Eigen::writebinary(OUTPUTFILES.getloc_BinaryG_Matrix().c_str(),Relationship);
     Relationship.resize(0,0);
     time_t end = time(0);
     logfileloc << "           - Finished constructing Genomic Relationship Matrix." << endl;
@@ -2037,7 +1995,7 @@ void newgenomicrelationship(parameters &SimParameters, vector <Animal> &populati
 /**************************************/
 /* Update genomic relationship matrix */
 /**************************************/
-void updategenomicrelationship(parameters &SimParameters, vector <Animal> &population, string Pheno_GMatrix_File,vector <int> &animal, vector <double> &Phenotype, double* M, float scale, string BinaryG_Matrix_File,int TotalOldAnimalNumber,int TotalAnimalNumber, ostream& logfileloc)
+void updategenomicrelationship(parameters &SimParameters, vector <Animal> &population,vector <int> &animal, vector <double> &Phenotype, double* M, float scale,int TotalOldAnimalNumber,int TotalAnimalNumber,outputfiles &OUTPUTFILES,ostream& logfileloc)
 {
     logfileloc << "           - Begin Constructing Genomic Relationship Matrix." << endl;
     time_t start = time(0);
@@ -2045,7 +2003,7 @@ void updategenomicrelationship(parameters &SimParameters, vector <Animal> &popul
     using Eigen::MatrixXd; using Eigen::VectorXd;
     MatrixXd Relationship(TotalAnimalNumber,TotalAnimalNumber);
     MatrixXd OldRelationship(TotalOldAnimalNumber,TotalOldAnimalNumber);
-    Eigen::readbinary(BinaryG_Matrix_File.c_str(),OldRelationship);
+    Eigen::readbinary(OUTPUTFILES.getloc_BinaryG_Matrix().c_str(),OldRelationship);
     /* Fill Relationship matrix with previously calcuated cells */
     for(int i = 0; i < TotalOldAnimalNumber; i++)
     {
@@ -2080,19 +2038,33 @@ void updategenomicrelationship(parameters &SimParameters, vector <Animal> &popul
     //cout << Phenotype.size() << endl;
     /* only need to fill in off-diagonals of new and old animals */
     /* Import file */
-    int linenumber = 0;
+    int linenumber = 0; vector < double > trait2;
     string line;
     ifstream infile2;
-    infile2.open(Pheno_GMatrix_File.c_str());
+    infile2.open(OUTPUTFILES.getloc_Pheno_GMatrix().c_str());
     if(infile2.fail()){cout << "Error Opening File\n";}
     while (getline(infile2,line))
     {
-        /* Grab animal id */
-        size_t pos = line.find(" ", 0); animal[linenumber] = (std::stoi(line.substr(0,pos))); line.erase(0, pos + 1);
-        /* Grap Phenotype */
-        pos = line.find(" ",0); Phenotype[linenumber] = (std::stod(line.substr(0,pos))); line.erase(0,pos + 1);
-        pos = line.find(" ",0); string tempgeno = line.substr(0,pos);                   /* Grab Marker Genotypes */
-        /* Do not need the paternal and maternal haplotypes */
+        vector < string > variables(7,"");
+        for(int i = 0; i < 7; i++)
+        {
+            size_t pos = line.find(" ",0); variables[i] = line.substr(0,pos);
+            if(pos != std::string::npos){line.erase(0, pos + 1);}
+            if(pos == std::string::npos){line.clear();}
+        }
+        int start = 0;
+        while(start < variables.size())
+        {
+            if(variables[start] == ""){variables.erase(variables.begin()+start);}
+            if(variables[start] != ""){start++;}
+        }
+        string tempgeno;
+        animal[linenumber] = stoi(variables[0].c_str());
+        if(variables.size() == 5){                              /* Single Trait Analysis */
+            Phenotype[linenumber] = stod(variables[1].c_str()); tempgeno = variables[2];
+        } else if(variables.size() == 6){                      /* Bivariate Analysis */
+            Phenotype[linenumber] = stod(variables[1].c_str()); trait2.push_back(stod(variables[2].c_str())); tempgeno = variables[3];
+        } else {cout << "Shouldn't Be Here!! E-mail Developer." << endl; exit (EXIT_FAILURE);}
         if(linenumber < (Phenotype.size() - n))                   /* once it reaches new animals doesn't do anything to those genotypes */
         {
             double *_geno_line = new double[m];
@@ -2116,6 +2088,11 @@ void updategenomicrelationship(parameters &SimParameters, vector <Animal> &popul
         }
         linenumber++;
     }
+    if(trait2.size() > 0)
+    {
+        if(trait2.size() == Phenotype.size()){for(int i = 0; i < trait2.size(); i++){Phenotype.push_back(trait2[i]);}
+        } else {cout << "Shouldn't Be Here!! E-mail Developer." << endl; exit (EXIT_FAILURE);}
+    }
     /* Need to fill in relationship between new and new animals */
     double *_grm_mkl_22 = new double[newanimals*newanimals];                /* Allocate Memory for G22 */
     cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasTrans, n, n, m, 1.0, _geno_mkl, m, _geno_mkl, m, 0.0, _grm_mkl_22, n);
@@ -2137,44 +2114,47 @@ void updategenomicrelationship(parameters &SimParameters, vector <Animal> &popul
     time_t end = time(0);
     logfileloc << "           - Finished constructing Genomic Relationship Matrix. " << endl;
     logfileloc << "               - Took: " << difftime(end,start) << " seconds." << endl;
-    Eigen::writebinary(BinaryG_Matrix_File.c_str(),Relationship);  /* Output Genomic Relationship Matrix into Binary for */
-    //fstream check; check.open("CHECK", std::fstream::out | std::fstream::trunc); check.close();
-    //std::ofstream outputcheck("CHECK", std::ios_base::app | std::ios_base::out);
-    //for(int i = 0; i < TotalAnimalNumber; i++)
-    //{
-    //    for(int j = 0; j < TotalAnimalNumber; j++){outputcheck << Relationship(i,j) << " ";}
-    //    outputcheck << endl << endl;
-    //}
-    //for(int i = 0; i < 5; i++)
-    //{
-    //    for(int j = 0; j < 5; j++){cout << _grm_mkl_22[(i*newanimals)+j] << "\t";}
-    //    cout << endl;
-    //}
-    
+    Eigen::writebinary(OUTPUTFILES.getloc_BinaryG_Matrix().c_str(),Relationship);  /* Output Genomic Relationship Matrix into Binary for */
 }
 /**********************************************/
 /* Update haplotype based relationship matrix */
 /**********************************************/
-void updatehaplotyperelationship(parameters &SimParameters,vector <Animal> &population, vector < hapLibrary > &haplib, string Pheno_GMatrix_File, vector <int> &animal, vector <double> &Phenotype,string BinaryG_Matrix_File,int TotalOldAnimalNumber,int TotalAnimalNumber,ostream& logfileloc)
+void updatehaplotyperelationship(parameters &SimParameters,vector <Animal> &population, vector < hapLibrary > &haplib,vector <int> &animal, vector <double> &Phenotype,int TotalOldAnimalNumber,int TotalAnimalNumber,outputfiles &OUTPUTFILES,ostream& logfileloc)
 {
     using Eigen::MatrixXd; using Eigen::VectorXd;
     logfileloc << "           - Begin Constructing " << SimParameters.getEBV_Calc() << " Relationship Matrix." << endl;
     /* Before you start to make h_matrix for each haplotype first create a 2-dimensional vector with haplotype id */
     /* This way you don't have to repeat this step for each haplotype */
     time_t start = time(0);
-    vector < vector < int > > PaternalHaplotypeIDs;
-    vector < vector < int > > MaternalHaplotypeIDs;
+    vector < vector < int > > PaternalHaplotypeIDs; string PaternalHap;
+    vector < vector < int > > MaternalHaplotypeIDs; string MaternalHap;
     /* read in all animals haplotype ID's; Don't need to really worry about this getting big */
-    int linenumber = 0; string line; ifstream infile2;
-    infile2.open(Pheno_GMatrix_File);
+    int linenumber = 0; string line; ifstream infile2; vector < double > trait2;
+    infile2.open(OUTPUTFILES.getloc_Pheno_GMatrix().c_str());
     if(infile2.fail()){cout << "Error Opening File To Make Genomic Relationship Matrix!\n"; exit (EXIT_FAILURE);}
     while (getline(infile2,line))
     {
-        size_t pos = line.find(" ", 0); animal[linenumber] = (std::stoi(line.substr(0,pos))); line.erase(0, pos + 1);
-        pos = line.find(" ",0); Phenotype[linenumber] = (std::stod(line.substr(0,pos))); line.erase(0,pos + 1);
-        pos = line.find(" ",0); line.erase(0,pos + 1); /* Do not need marker genotypes so skip */
-        pos = line.find(" ",0); string PaternalHap = line.substr(0,pos); line.erase(0,pos + 1);
-        string MaternalHap = line;
+        vector < string > variables(7,"");
+        for(int i = 0; i < 7; i++)
+        {
+            size_t pos = line.find(" ",0); variables[i] = line.substr(0,pos);
+            if(pos != std::string::npos){line.erase(0, pos + 1);}
+            if(pos == std::string::npos){line.clear();}
+        }
+        int start = 0;
+        while(start < variables.size())
+        {
+            if(variables[start] == ""){variables.erase(variables.begin()+start);}
+            if(variables[start] != ""){start++;}
+        }
+        animal[linenumber] = stoi(variables[0].c_str());
+        if(variables.size() == 5){                              /* Single Trait Analysis */
+            Phenotype[linenumber] = stod(variables[1].c_str()); PaternalHap = variables[3]; MaternalHap = variables[4];
+        } else if(variables.size() == 6){                      /* Bivariate Analysis */
+            Phenotype[linenumber] = stod(variables[1].c_str()); trait2.push_back(stod(variables[2].c_str()));
+            PaternalHap = variables[4]; MaternalHap = variables[5];
+        } else {cout << "Shouldn't Be Here!! E-mail Developer." << endl; exit (EXIT_FAILURE);}
+        /* Split apart into haplotype numbers */
         vector < int > temp_pat;
         string quit = "NO";
         while(quit != "YES")
@@ -2203,13 +2183,18 @@ void updatehaplotyperelationship(parameters &SimParameters,vector <Animal> &popu
         MaternalHaplotypeIDs.push_back(temp_mat);                               /* push back row */
         linenumber++;
     }
+    if(trait2.size() > 0)
+    {
+        if(trait2.size() == Phenotype.size()){for(int i = 0; i < trait2.size(); i++){Phenotype.push_back(trait2[i]);}
+        } else {cout << "Shouldn't Be Here!! E-mail Developer." << endl; exit (EXIT_FAILURE);}
+    }
     /* Initialize Relationship Matrix as 0.0 */
     MatrixXd Relationship(PaternalHaplotypeIDs.size(),PaternalHaplotypeIDs.size());     /* GRM calculated previously */
     Relationship = MatrixXd::Identity(PaternalHaplotypeIDs.size(),PaternalHaplotypeIDs.size());
     for(int i = 0; i < PaternalHaplotypeIDs.size(); i++){Relationship(i,i) = 0;}
     /* Grab old relationship Matrix */
     MatrixXd OldRelationship(TotalOldAnimalNumber,TotalOldAnimalNumber);        /* Used to store old animal G */
-    Eigen::readbinary(BinaryG_Matrix_File.c_str(),OldRelationship);            /* Read in old G */
+    Eigen::readbinary(OUTPUTFILES.getloc_BinaryG_Matrix().c_str(),OldRelationship);            /* Read in old G */
     /* Animal Haplotype ID's have been put in 2-D vector to grab */
     for(int i = 0; i < haplib.size(); i++)
     {
@@ -2309,7 +2294,7 @@ void updatehaplotyperelationship(parameters &SimParameters,vector <Animal> &popu
     time_t  end = time(0);
     logfileloc << "           - Finished constructing Genomic Relationship Matrix. " << endl;
     logfileloc << "               - Took: " << difftime(end,start) << " seconds." << endl;
-    Eigen::writebinary(BinaryG_Matrix_File.c_str(),Relationship);  /* Output Relationship Matrix into Binary */
+    Eigen::writebinary(OUTPUTFILES.getloc_BinaryG_Matrix().c_str(),Relationship);  /* Output Relationship Matrix into Binary */
 }
 /*******************************************************/
 /* Generate subset of relationship matrix for Hinverse */
@@ -2499,7 +2484,7 @@ void Meuwissen_Luo_Ainv_Sparse(vector <int> &animal,vector <int> &sire,vector <i
 /****************************************************************/
 /* Generate new genomic relationship inverse based on recursion */
 /****************************************************************/
-void newgenomicrecursion(parameters &SimParameters, int relationshipsize, string BinaryG_Matrix_File,string Binarym_Matrix_File, string Binaryp_Matrix_File, string BinaryGinv_Matrix_File,vector < tuple<int,int,double> > &sprelationshipinv,ostream& logfileloc,vector <int> &animal)
+void newgenomicrecursion(parameters &SimParameters, int relationshipsize,vector < tuple<int,int,double> > &sprelationshipinv,vector <int> &animal,outputfiles &OUTPUTFILES,ostream& logfileloc)
 {
     logfileloc << "           - Begin Constructing Genomic Relationship Inverse (Using recursion)." << endl;
     time_t start = time(0);
@@ -2513,7 +2498,7 @@ void newgenomicrecursion(parameters &SimParameters, int relationshipsize, string
     Relationshipinv = MatrixXd::Identity(relationshipsize,relationshipsize);
     pg = MatrixXd::Identity(relationshipsize,relationshipsize);
     for(int i = 0; i < relationshipsize; i++){Relationship(i,i) = 0; Relationshipinv(i,i) = 0; pg(i,i) = 0; mg(i,0) = 0;}
-    Eigen::readbinary(BinaryG_Matrix_File.c_str(),Relationship);
+    Eigen::readbinary(OUTPUTFILES.getloc_BinaryG_Matrix().c_str(),Relationship);
     /* Add small numbers to make it invertible */
     for(int i = 0; i < relationshipsize; i++){Relationship(i,i) += 0.001;}
     //for(int i = 0; i < 5; i++)
@@ -2540,15 +2525,15 @@ void newgenomicrecursion(parameters &SimParameters, int relationshipsize, string
     }
     if(SimParameters.getEBV_Calc() == "h1" || SimParameters.getEBV_Calc() == "h2" || SimParameters.getEBV_Calc() == "rohblup")
     {
-        Eigen::writebinary(Binarym_Matrix_File.c_str(),mg);                 /* Output m Matrix into Binary */
-        Eigen::writebinary(Binaryp_Matrix_File.c_str(),pg);                 /* Output p Matrix into Binary */
-        Eigen::writebinary(BinaryGinv_Matrix_File.c_str(),Relationshipinv); /* Output Relationship Inverse Matrix into Binary */
+        Eigen::writebinary(OUTPUTFILES.getloc_Binarym_Matrix().c_str(),mg);                 /* Output m Matrix into Binary */
+        Eigen::writebinary(OUTPUTFILES.getloc_Binaryp_Matrix().c_str(),pg);                 /* Output p Matrix into Binary */
+        Eigen::writebinary(OUTPUTFILES.getloc_BinaryGinv_Matrix().c_str(),Relationshipinv); /* Output Relationship Inverse Matrix into Binary */
     }
     if(SimParameters.getEBV_Calc() == "gblup" && SimParameters.getConstructGFreq() == "founder")
     {
-        Eigen::writebinary(Binarym_Matrix_File.c_str(),mg);                 /* Output m Matrix into Binary */
-        Eigen::writebinary(Binaryp_Matrix_File.c_str(),pg);                 /* Output p Matrix into Binary */
-        Eigen::writebinary(BinaryGinv_Matrix_File.c_str(),Relationshipinv); /* Output Relationship Inverse Matrix into Binary */
+        Eigen::writebinary(OUTPUTFILES.getloc_Binarym_Matrix().c_str(),mg);                 /* Output m Matrix into Binary */
+        Eigen::writebinary(OUTPUTFILES.getloc_Binaryp_Matrix().c_str(),pg);                 /* Output p Matrix into Binary */
+        Eigen::writebinary(OUTPUTFILES.getloc_BinaryGinv_Matrix().c_str(),Relationshipinv); /* Output Relationship Inverse Matrix into Binary */
     }
     mg.resize(0,0); pg.resize(0,0); Relationship.resize(0,0);
     /* Convert to triplet form */
@@ -2556,14 +2541,16 @@ void newgenomicrecursion(parameters &SimParameters, int relationshipsize, string
     {
         for(int j = i; j < relationshipsize; j++)
         {
-            sprelationshipinv.push_back(std::make_tuple((animal[i]-1),(animal[j]-1),Relationshipinv(i,j)));
+            if(j > i){Relationshipinv(j,i) = Relationshipinv(i,j);}
         }
     }
-    //for(int i = 0; i < 5; i++)
-    //{
-    //    for(int j = 0; j < 5; j++){cout << Relationshipinv(i,j) << "\t";}
-    //    cout << endl;
-    //}
+    for(int i = 0; i < relationshipsize; i++)
+    {
+        for(int j = 0; j < relationshipsize; j++)
+        {
+            sprelationshipinv.push_back(std::make_tuple(i,j,Relationshipinv(i,j)));
+        }
+    }
     Relationshipinv.resize(0,0);
     time_t end = time(0);
     logfileloc<<"           - Finished constructing Genomic Relationship Inverse. " << endl;
@@ -2572,7 +2559,7 @@ void newgenomicrecursion(parameters &SimParameters, int relationshipsize, string
 /**********************************************************/
 /* Update genomic relationship inverse based on recursion */
 /**********************************************************/
-void updategenomicrecursion(int TotalAnimalNumber, int TotalOldAnimalNumber, string BinaryG_Matrix_File,string Binarym_Matrix_File, string Binaryp_Matrix_File, string BinaryGinv_Matrix_File,vector <tuple<int,int,double> > &sprelationshipinv,ostream& logfileloc,vector <int> &animal)
+void updategenomicrecursion(int TotalAnimalNumber, int TotalOldAnimalNumber,vector <tuple<int,int,double> > &sprelationshipinv,vector <int> &animal,outputfiles &OUTPUTFILES,ostream& logfileloc)
 {
     logfileloc << "           - Begin Constructing Genomic Relationship Inverse (Using recursion)." << endl;
     time_t start = time(0);
@@ -2592,10 +2579,10 @@ void updategenomicrecursion(int TotalAnimalNumber, int TotalOldAnimalNumber, str
     pg = MatrixXd::Identity(TotalAnimalNumber,TotalAnimalNumber);
     for(int i = 0; i < TotalAnimalNumber; i++){Relationship(i,i) = 0; Relationshipinv(i,i) = 0; pg(i,i) = 0; mg(i,0) = 0;}
     /* Fill old matrices */
-    Eigen::readbinary(Binarym_Matrix_File.c_str(),Old_m);
-    Eigen::readbinary(Binaryp_Matrix_File.c_str(),Old_p);
-    Eigen::readbinary(BinaryGinv_Matrix_File.c_str(),Old_Ginv);
-    Eigen::readbinary(BinaryG_Matrix_File.c_str(),Relationship);
+    Eigen::readbinary(OUTPUTFILES.getloc_Binarym_Matrix().c_str(),Old_m);
+    Eigen::readbinary(OUTPUTFILES.getloc_Binaryp_Matrix().c_str(),Old_p);
+    Eigen::readbinary(OUTPUTFILES.getloc_BinaryGinv_Matrix().c_str(),Old_Ginv);
+    Eigen::readbinary(OUTPUTFILES.getloc_BinaryG_Matrix().c_str(),Relationship);
     /* Add small numbers to make it invertible */
     for(int i = 0; i < TotalAnimalNumber; i++){Relationship(i,i) += 1e-5;}
     /* Fill full matrices with already computed animals */
@@ -2621,9 +2608,16 @@ void updategenomicrecursion(int TotalAnimalNumber, int TotalOldAnimalNumber, str
         Relationshipinv.block(0,0,i+1,i+1) = Relationshipinv.block(0,0,i+1,i+1) + (((subp * subp.transpose()) / mg(i,0)));
     }
     logfileloc << "               - Filled Inverse Relationship Matrix for new animals." << endl;
-    Eigen::writebinary(Binarym_Matrix_File.c_str(),mg);                       /* Output m Matrix into Binary for next generation */
-    Eigen::writebinary(Binaryp_Matrix_File.c_str(),pg);                       /* Output p Matrix into Binary for next generation */
-    Eigen::writebinary(BinaryGinv_Matrix_File.c_str(),Relationshipinv);       /* Output Ginv Matrix into Binary for next generation */
+    for(int i = 0; i < TotalAnimalNumber; i++)
+    {
+        for(int j = i; j < TotalAnimalNumber; j++)
+        {
+            if(j > i){Relationshipinv(j,i) = Relationshipinv(i,j);}
+        }
+    }
+    Eigen::writebinary(OUTPUTFILES.getloc_Binarym_Matrix().c_str(),mg);                       /* Output m Matrix into Binary for next generation */
+    Eigen::writebinary(OUTPUTFILES.getloc_Binaryp_Matrix().c_str(),pg);                       /* Output p Matrix into Binary for next generation */
+    Eigen::writebinary(OUTPUTFILES.getloc_BinaryGinv_Matrix().c_str(),Relationshipinv);       /* Output Ginv Matrix into Binary for next generation */
     mg.resize(0,0); pg.resize(0,0); Relationship.resize(0,0);
     //for(int i = 0; i < 5; i++)
     //{
@@ -2632,9 +2626,9 @@ void updategenomicrecursion(int TotalAnimalNumber, int TotalOldAnimalNumber, str
     //}
     for(int i = 0; i < TotalAnimalNumber; i++)
     {
-        for(int j = i; j < TotalAnimalNumber; j++)
+        for(int j = 0; j < TotalAnimalNumber; j++)
         {
-            sprelationshipinv.push_back(std::make_tuple((animal[i]-1),(animal[j]-1),Relationshipinv(i,j)));
+            sprelationshipinv.push_back(std::make_tuple(i,j,Relationshipinv(i,j)));
         }
     }
     Relationshipinv.resize(0,0);
@@ -2645,7 +2639,7 @@ void updategenomicrecursion(int TotalAnimalNumber, int TotalOldAnimalNumber, str
 /***************************************************************************/
 /* Generate new genomic relationship inverse based on cholesky rank update */
 /***************************************************************************/
-void newgenomiccholesky(parameters &SimParameters, int relationshipsize, string BinaryG_Matrix_File,string BinaryLinv_Matrix_File, string BinaryGinv_Matrix_File, vector < tuple<int,int,double> > &sprelationshipinv,ostream& logfileloc,vector <int> &animal)
+void newgenomiccholesky(parameters &SimParameters, int relationshipsize,vector < tuple<int,int,double> > &sprelationshipinv,vector <int> &animal,outputfiles &OUTPUTFILES,ostream& logfileloc)
 {
     logfileloc << "           - Begin Constructing Genomic Relationship Inverse (Using cholesky)." << endl;
     time_t start = time(0);
@@ -2653,7 +2647,7 @@ void newgenomiccholesky(parameters &SimParameters, int relationshipsize, string 
     MatrixXd Relationship(relationshipsize,relationshipsize);     /* GRM calculated previously */
     Relationship = MatrixXd::Identity(relationshipsize,relationshipsize);
     for(int i = 0; i < relationshipsize; i++){Relationship(i,i) = 0;}
-    Eigen::readbinary(BinaryG_Matrix_File.c_str(),Relationship);
+    Eigen::readbinary(OUTPUTFILES.getloc_BinaryG_Matrix().c_str(),Relationship);
     /* Add small numbers to make it invertible */
     for(int i = 0; i < relationshipsize; i++){Relationship(i,i) += 0.001;}
     /* Set up parameters used for mkl variables */
@@ -2686,7 +2680,7 @@ void newgenomiccholesky(parameters &SimParameters, int relationshipsize, string 
         {
             for(j_p = (i_p+1); j_p < n_a; j_p++){LINV(i_p,j_p) = 0.0;}
         }
-        Eigen::writebinary(BinaryLinv_Matrix_File.c_str(),LINV);                    /* Output Linv Matrix into Binary */
+        Eigen::writebinary(OUTPUTFILES.getloc_BinaryLinv_Matrix().c_str(),LINV);                    /* Output Linv Matrix into Binary */
         LINV.resize(0,0);
     }
     if(SimParameters.getEBV_Calc() == "gblup" && SimParameters.getConstructGFreq() == "founder")
@@ -2702,7 +2696,7 @@ void newgenomiccholesky(parameters &SimParameters, int relationshipsize, string 
         {
             for(j_p = (i_p+1); j_p < n_a; j_p++){LINV(i_p,j_p) = 0.0;}
         }
-        Eigen::writebinary(BinaryLinv_Matrix_File.c_str(),LINV);                    /* Output Linv Matrix into Binary */
+        Eigen::writebinary(OUTPUTFILES.getloc_BinaryLinv_Matrix().c_str(),LINV);                    /* Output Linv Matrix into Binary */
         LINV.resize(0,0);
     }
     delete[] Linv;
@@ -2714,6 +2708,13 @@ void newgenomiccholesky(parameters &SimParameters, int relationshipsize, string 
         for(j_p = 0; j_p < n_a; j_p++){Relationshipinv(i_p,j_p) =  GRM[(i_p*n_a)+j_p];}
     }
     delete [] GRM;
+    for(int i = 0; i < relationshipsize; i++)
+    {
+        for(int j = i; j < relationshipsize; j++)
+        {
+            if(j > i){Relationshipinv(j,i) = Relationshipinv(i,j);}
+        }
+    }
     //for(int i = 0; i < 5; i++)
     //{
     //    for(int j = 0; j < 5; j++){cout << Relationshipinv(i,j) << "\t";}
@@ -2721,18 +2722,17 @@ void newgenomiccholesky(parameters &SimParameters, int relationshipsize, string 
     //}
     if(SimParameters.getEBV_Calc() == "h1" || SimParameters.getEBV_Calc() == "h2" || SimParameters.getEBV_Calc() == "rohblup")
     {
-        Eigen::writebinary(BinaryGinv_Matrix_File.c_str(),Relationshipinv);        /* Output Relationship Inverse Matrix into Binary */
+        Eigen::writebinary(OUTPUTFILES.getloc_BinaryGinv_Matrix().c_str(),Relationshipinv);        /* Output Relationship Inverse Matrix into Binary */
     }
     if(SimParameters.getEBV_Calc() == "gblup" && SimParameters.getConstructGFreq() == "founder")
     {
-        Eigen::writebinary(BinaryGinv_Matrix_File.c_str(),Relationshipinv);        /* Output Relationship Inverse Matrix into Binary */
+        Eigen::writebinary(OUTPUTFILES.getloc_BinaryGinv_Matrix().c_str(),Relationshipinv);        /* Output Relationship Inverse Matrix into Binary */
     }
-    
     for(int i = 0; i < relationshipsize; i++)
     {
-        for(int j = i; j < relationshipsize; j++)
+        for(int j = 0; j < relationshipsize; j++)
         {
-            sprelationshipinv.push_back(std::make_tuple((i),(j),Relationshipinv(i,j)));
+            sprelationshipinv.push_back(std::make_tuple(i,j,Relationshipinv(i,j)));
         }
     }
     Relationshipinv.resize(0,0);
@@ -2743,7 +2743,7 @@ void newgenomiccholesky(parameters &SimParameters, int relationshipsize, string 
 /**********************************************************/
 /* Update genomic relationship inverse based on cholesky */
 /**********************************************************/
- void updategenomiccholesky(int TotalAnimalNumber, int TotalOldAnimalNumber, string BinaryG_Matrix_File,string BinaryLinv_Matrix_File, string BinaryGinv_Matrix_File, vector < tuple<int,int,double> > &sprelationshipinv,ostream& logfileloc,vector <int> &animal)
+void updategenomiccholesky(int TotalAnimalNumber, int TotalOldAnimalNumber,vector < tuple<int,int,double> > &sprelationshipinv,vector <int> &animal,outputfiles &OUTPUTFILES,ostream& logfileloc)
 {
     logfileloc << "           - Begin Constructing Genomic Relationship Inverse (Using cholesky)." << endl;
     time_t start = time(0);
@@ -2752,9 +2752,9 @@ void newgenomiccholesky(parameters &SimParameters, int relationshipsize, string 
     MatrixXd GINV_Old(TotalOldAnimalNumber,TotalOldAnimalNumber);               /* Used to store old animals for Ginv */
     MatrixXd Relationship(TotalAnimalNumber,TotalAnimalNumber);                 /* GRM calculated previously */
     MatrixXd Relationshipinv(TotalAnimalNumber,TotalAnimalNumber);                 /* GRM calculated previously */
-    Eigen::readbinary(BinaryLinv_Matrix_File.c_str(),LINV_Old);
-    Eigen::readbinary(BinaryGinv_Matrix_File.c_str(),GINV_Old);
-    Eigen::readbinary(BinaryG_Matrix_File.c_str(),Relationship);
+    Eigen::readbinary(OUTPUTFILES.getloc_BinaryLinv_Matrix().c_str(),LINV_Old);
+    Eigen::readbinary(OUTPUTFILES.getloc_BinaryGinv_Matrix().c_str(),GINV_Old);
+    Eigen::readbinary(OUTPUTFILES.getloc_BinaryG_Matrix().c_str(),Relationship);
     /* Add small numbers to make it invertible */
     for(int i = 0; i < TotalAnimalNumber; i++){Relationship(i,i) += 1e-5;}
     /* Parameters that are used for mkl functions */
@@ -2890,21 +2890,28 @@ void newgenomiccholesky(parameters &SimParameters, int relationshipsize, string 
         for(j_p = oldanm; j_p < (oldanm+newanm); j_p++){Relationshipinv(i_p,j_p) = G22invnew[(row*newanm)+rowj]; rowj++;}
         row++;
     }
-    ///////////////////////////////////////
-    // Generate Linv for next generation //
-    ///////////////////////////////////////
-    Eigen::writebinary(BinaryLinv_Matrix_File.c_str(),LINV);           /* Output Linv Matrix into Binary */
-    Eigen::writebinary(BinaryGinv_Matrix_File.c_str(),Relationshipinv);/* Output Relationship Inverse Matrix into Binary */
-    //for(int i = 0; i < 5; i++)
-    //{
-    //    for(int j = 0; j < 5; j++){cout << Relationshipinv(i,j) << "\t";}
-    //   cout << endl;
-    //}
     for(int i = 0; i < TotalAnimalNumber; i++)
     {
         for(int j = i; j < TotalAnimalNumber; j++)
         {
-            sprelationshipinv.push_back(std::make_tuple((animal[i]-1),(animal[j]-1),Relationshipinv(i,j)));
+            if(j > i){Relationshipinv(j,i) = Relationshipinv(i,j);}
+        }
+    }
+    ///////////////////////////////////////
+    // Generate Linv for next generation //
+    ///////////////////////////////////////
+    Eigen::writebinary(OUTPUTFILES.getloc_BinaryLinv_Matrix().c_str(),LINV);           /* Output Linv Matrix into Binary */
+    Eigen::writebinary(OUTPUTFILES.getloc_BinaryGinv_Matrix().c_str(),Relationshipinv);/* Output Relationship Inverse Matrix into Binary */
+    //for(int i = 0; i < 5; i++)
+    //{
+    //    for(int j = 0; j < 5; j++){cout << Relationshipinv(i,j) << "\t";}
+    //    cout << endl;
+    //}
+    for(int i = 0; i < TotalAnimalNumber; i++)
+    {
+        for(int j = 0; j < TotalAnimalNumber; j++)
+        {
+            sprelationshipinv.push_back(std::make_tuple(i,j,Relationshipinv(i,j)));
         }
     }
     /* Delete Matrices */
@@ -2917,7 +2924,7 @@ void newgenomiccholesky(parameters &SimParameters, int relationshipsize, string 
 /*********************************/
 /* Generate H inverse in ssgblup */
 /*********************************/
-void H_inverse_function(parameters &SimParameters, vector <Animal> &population,string Pheno_Pedigree_File,string Pheno_GMatrix_File,string GenotypeStatus_path, vector <int> &animal, vector <double> &Phenotype, vector <int> trainanimals, vector < tuple<int,int,double> > &sprelationshipinv, ostream& logfileloc)
+void H_inverse_function(parameters &SimParameters, vector <Animal> &population,vector <int> &animal, vector <double> &Phenotype, vector <int> trainanimals, vector < tuple<int,int,double> > &sprelationshipinv,outputfiles &OUTPUTFILES ,ostream& logfileloc)
 {
     using Eigen::SparseMatrix; using Eigen::MatrixXd; using Eigen::VectorXd;
     /* Hinverse is Ainv + (Ginv -A22) for genotyped animals only */
@@ -2927,30 +2934,58 @@ void H_inverse_function(parameters &SimParameters, vector <Animal> &population,s
     vector <int> sire(animal.size(),0); vector <int> dam(animal.size(),0);
     /*read in Pheno_Pedigree file and store in a vector to determine how many animals their are */
     int linenumber = 0; int tempanim; int tempanimindex = 0; int indexintrainanim = 0;  /* Counter to determine where at in pedigree index's */
+    vector < double > trait2;
     string line;
     ifstream infile2;
-    infile2.open(Pheno_Pedigree_File.c_str());                                                  /* This file has all animals in it */
+    infile2.open(OUTPUTFILES.getloc_Pheno_Pedigree().c_str());                                                  /* This file has all animals in it */
     if(infile2.fail()){cout << "Error Opening File To Make Pedigree Relationship Matrix\n"; exit (EXIT_FAILURE);}
     while (getline(infile2,line))
     {
-        size_t pos = line.find(" ", 0); tempanim = (std::stoi(line.substr(0,pos)));
+        vector < string > variables(5,"");
+        for(int i = 0; i < 5; i++)
+        {
+            size_t pos = line.find(" ",0); variables[i] = line.substr(0,pos);
+            if(pos != std::string::npos){line.erase(0, pos + 1);}
+            if(pos == std::string::npos){line.clear();}
+        }
+        int start = 0;
+        while(start < variables.size())
+        {
+            if(variables[start] == ""){variables.erase(variables.begin()+start);}
+            if(variables[start] != ""){start++;}
+        }
+        tempanim = stoi(variables[0].c_str());
         if(trainanimals.size() == 0)
         {
-            animal[tempanimindex] = tempanim; line.erase(0, pos + 1);   /* Grab animal id */
-            pos = line.find(" ",0); sire[tempanimindex] = stoi(line.substr(0,pos)); line.erase(0, pos + 1);             /* Grab Sire ID */
-            pos = line.find(" ",0); dam[tempanimindex] = stoi(line.substr(0,pos)); line.erase(0, pos + 1);              /* Grab Dam ID */
-            Phenotype[tempanimindex] = stod(line); tempanimindex++;                                                     /* Grab Phenotype */
+            if(variables.size() == 4){                              /* Single Trait Analysis */
+                animal[tempanimindex] = tempanim; sire[tempanimindex] = stoi(variables[1].c_str());
+                dam[tempanimindex] = stoi(variables[2].c_str()); Phenotype[tempanimindex] = stod(variables[3].c_str());
+            } else if(variables.size() == 5){                      /* Bivariate Analysis */
+                animal[tempanimindex] = tempanim; sire[tempanimindex] = stoi(variables[1].c_str());
+                dam[tempanimindex] = stoi(variables[2].c_str()); Phenotype[tempanimindex] = stod(variables[3].c_str());
+                trait2.push_back(stod(variables[4].c_str()));
+            } else {cout << "Shouldn't Be Here!! E-mail Developer." << endl; exit (EXIT_FAILURE);}
+            tempanimindex++;
         } else {
             if(tempanim == trainanimals[indexintrainanim])
             {
-                animal[tempanimindex] = tempanim; line.erase(0, pos + 1);   /* Grab animal id */
-                pos = line.find(" ",0); sire[tempanimindex] = stoi(line.substr(0,pos)); line.erase(0, pos + 1);             /* Grab Sire ID */
-                pos = line.find(" ",0); dam[tempanimindex] = stoi(line.substr(0,pos)); line.erase(0, pos + 1);              /* Grab Dam ID */
-                Phenotype[tempanimindex] = stod(line); tempanimindex++;                                                     /* Grab Phenotype */
-                indexintrainanim++;
+                if(variables.size() == 4){                              /* Single Trait Analysis */
+                    animal[tempanimindex] = tempanim; sire[tempanimindex] = stoi(variables[1].c_str());
+                    dam[tempanimindex] = stoi(variables[2].c_str()); Phenotype[tempanimindex] = stod(variables[3].c_str());
+                } else if(variables.size() == 5){                      /* Bivariate Analysis */
+                    animal[tempanimindex] = tempanim; sire[tempanimindex] = stoi(variables[1].c_str());
+                    dam[tempanimindex] = stoi(variables[2].c_str()); Phenotype[tempanimindex] = stod(variables[3].c_str());
+                    trait2.push_back(stod(variables[4].c_str()));
+                } else {cout << "Shouldn't Be Here!! E-mail Developer." << endl; exit (EXIT_FAILURE);}
+                tempanimindex++; indexintrainanim++;
             }
         }
         linenumber++;
+    }
+    if(trait2.size() > 0)
+    {
+        if(trait2.size() == Phenotype.size()){for(int i = 0; i < trait2.size(); i++){Phenotype.push_back(trait2[i]);}
+        } else {cout << "Shouldn't Be Here!! E-mail Developer." << endl; exit (EXIT_FAILURE);}
     }
     vector <int> renum_animal; vector <int> renum_sire; vector <int> renum_dam; /* will be of the same dimension as animal but go from 1:n */
     if(trainanimals.size() > 0 )
@@ -2999,16 +3034,14 @@ void H_inverse_function(parameters &SimParameters, vector <Animal> &population,s
     vector <int> locationA;         /* location of animal within full A if animals are truncated */
     vector <int> locationA22;       /* location of animal within A22 and G */
     vector <string> genotypes;      /* genotype for an animal */
-    ifstream infilegstat;
-    infilegstat.open(GenotypeStatus_path.c_str());
+    ifstream infilegstat; int tempgenoid; string genostatustemp;
+    infilegstat.open(OUTPUTFILES.getloc_GenotypeStatus().c_str());
     if(infilegstat.fail()){cout << "GenotypeStatus!\n"; exit (EXIT_FAILURE);}
     while (getline(infilegstat,line))
     {
-        size_t pos = line.find("No",0);   /* If you can find no skip it */
-        if(pos == std::string::npos)
-        {
-            pos = line.find(" ",0); parentid.push_back(stoi(line.substr(0,pos))); line.erase(0, pos + 1);
-        }
+        size_t pos = line.find(" ",0); tempgenoid = atoi((line.substr(0,pos)).c_str()); line.erase(0, pos + 1);
+        pos = line.find(" ",0); genostatustemp = (line.substr(0,pos));
+        if(genostatustemp == "Yes"){parentid.push_back(tempgenoid);}
     }
     logfileloc << "            - Number of genotyped animals: " << parentid.size() << endl;
     if(renum_animal.size() > 0)
@@ -3039,20 +3072,80 @@ void H_inverse_function(parameters &SimParameters, vector <Animal> &population,s
     /* Grab genotypes for animals that were genotyped */
     /**************************************************/
     tempanimindex = 0; int indexgeno = 0;
-    ifstream infileG;
-    infileG.open(Pheno_GMatrix_File.c_str());
-    if(infileG.fail()){cout << "Error Opening 'Pheno_GMatrix' File\n";}
-    while(getline(infileG,line))
+    if(SimParameters.getImputationFile() == "nofile")
     {
-        if(indexgeno < parentid.size())
+        ifstream infileG;
+        infileG.open(OUTPUTFILES.getloc_Pheno_GMatrix().c_str());
+        if(infileG.fail()){cout << "Error Opening 'Pheno_GMatrix' File\n"; exit (EXIT_FAILURE);}
+        while(getline(infileG,line))
         {
-            size_t pos = line.find(" ", 0); tempanim = (std::stoi(line.substr(0,pos)));
-            if(tempanim == parentid[indexgeno])
+            if(indexgeno < parentid.size())
             {
-                pos = line.find(" ",0); line.erase(0, pos + 1);  pos = line.find(" ",0); line.erase(0, pos + 1);
-                pos = line.find(" ",0); genotypes[indexgeno] =line.substr(0,pos);
-                //cout << parentid[indexgeno] << " " << locationA22[indexgeno] << " " << genotypes[indexgeno] << endl;
-                indexgeno++;
+                size_t pos = line.find(" ", 0); tempanim = (std::stoi(line.substr(0,pos)));
+                if(tempanim == parentid[indexgeno])
+                {
+                    vector < string > variables(7,"");
+                    for(int i = 0; i < 7; i++)
+                    {
+                        size_t pos = line.find(" ",0); variables[i] = line.substr(0,pos);
+                        if(pos != std::string::npos){line.erase(0, pos + 1);}
+                        if(pos == std::string::npos){line.clear();}
+                    }
+                    int start = 0;
+                    while(start < variables.size())
+                    {
+                        if(variables[start] == ""){variables.erase(variables.begin()+start);}
+                        if(variables[start] != ""){start++;}
+                    }
+                    //cout << variables.size() << endl;
+                    //for(int i = 0; i < variables.size(); i++){cout << variables[i] << endl;}
+                    tempanim = stoi(variables[0].c_str());
+                    if(variables.size() == 5){
+                        genotypes[indexgeno] = variables[2].c_str(); /* Single Trait Analysis */
+                    }else if(variables.size() == 6){
+                        genotypes[indexgeno] = variables[3].c_str(); /* Bivariate Analysis */
+                    } else {cout << "1Shouldn't Be Here!! E-mail Developer." << endl; exit (EXIT_FAILURE);}
+                    indexgeno++;
+                }
+            }
+        }
+    }
+    if(SimParameters.getImputationFile() != "nofile")
+    {
+        ifstream infileG;
+        infileG.open(OUTPUTFILES.getloc_Pheno_GMatrixImp().c_str());
+        cout << OUTPUTFILES.getloc_Pheno_GMatrixImp().c_str() << endl;
+        if(infileG.fail()){cout << "Error Opening 'Pheno_GMatrixImputed' File\n"; exit (EXIT_FAILURE);}
+        while(getline(infileG,line))
+        {
+            if(indexgeno < parentid.size())
+            {
+                size_t pos = line.find(" ", 0); tempanim = (std::stoi(line.substr(0,pos)));
+                if(tempanim == parentid[indexgeno])
+                {
+                    vector < string > variables(7,"");
+                    for(int i = 0; i < 7; i++)
+                    {
+                        size_t pos = line.find(" ",0); variables[i] = line.substr(0,pos);
+                        if(pos != std::string::npos){line.erase(0, pos + 1);}
+                        if(pos == std::string::npos){line.clear();}
+                    }
+                    int start = 0;
+                    while(start < variables.size())
+                    {
+                        if(variables[start] == ""){variables.erase(variables.begin()+start);}
+                        if(variables[start] != ""){start++;}
+                    }
+                    //cout << variables.size() << endl;
+                    //for(int i = 0; i < variables.size(); i++){cout << variables[i] << endl;}
+                    tempanim = stoi(variables[0].c_str());
+                    if(variables.size() == 5){
+                        genotypes[indexgeno] = variables[2].c_str(); /* Single Trait Analysis */
+                    }else if(variables.size() == 6){
+                        genotypes[indexgeno] = variables[3].c_str(); /* Bivariate Analysis */
+                    } else {cout << "1Shouldn't Be Here!! E-mail Developer." << endl; exit (EXIT_FAILURE);}
+                    indexgeno++;
+                }
             }
         }
     }
@@ -3088,33 +3181,34 @@ void H_inverse_function(parameters &SimParameters, vector <Animal> &population,s
     //}
     //cout << endl << endl;
     logfileloc << "            - Final A22 Matrix Summary Statistics: " << endl;
-    vector < double > A22summarystats(6,0.0);
+    vector < double > A22summarystats(7,0.0);
     MatrixStats(A22summarystats,A22relationship,numbgenotyped,logfileloc);
     /*****************************/
     /* Make A22 and G be similar */
     /*****************************/
-    logfileloc << "            - Blend G (0.95) with A (0.05). " << endl;
-    for(int i = 0; i < (genotypes.size()*genotypes.size()); i++){_grm_mkl[i] = ((_grm_mkl[i] *0.95) + (A22relationship[i]*0.05));}
-    vector < double > Gsummarystats(6,0.0);
+    vector < double > Gsummarystats(7,0.0);
     logfileloc << "            - Initial G Matrix Summary Statistics: " << endl;
     MatrixStats(Gsummarystats,_grm_mkl,numbgenotyped,logfileloc);
     logfileloc << "            - Force G diagonals and off-diagonals to equal A22 diagonals and off-diagonals. " << endl;
     // - Solve system of equations:
     //  1.) a + b(" << initmeanoffdiagG << ") = " << meanoffdiagonalA22 << endl;
     //  2.) a + b(" << initmeandiagG << ") = " << meandiagonalA22 << endl;
-    double a_gadj = ((A22summarystats[3]*Gsummarystats[0])-(Gsummarystats[3]*A22summarystats[0])) / ((1*Gsummarystats[0])-(Gsummarystats[3]*1));
-    double b_gadj = ((1*A22summarystats[0])-(A22summarystats[3]*1)) / ((1*Gsummarystats[0])-(Gsummarystats[3]*1));
-    logfileloc <<"              - NewG(i,j) = " << a_gadj << "OldG(i,j) * " << b_gadj << ". (Christensen et al. 2012)." << endl;
+    double a_gadj = ((A22summarystats[6]*Gsummarystats[0])-(Gsummarystats[6]*A22summarystats[0])) / ((1*Gsummarystats[0])-(Gsummarystats[6]*1));
+    double b_gadj = ((1*A22summarystats[0])-(A22summarystats[6]*1)) / ((1*Gsummarystats[0])-(Gsummarystats[6]*1));
+    logfileloc <<"              - NewG(i,j) = " << a_gadj << " + OldG(i,j) * " << b_gadj << ". (Christensen et al. 2012)." << endl;
     for(int i = 0; i < (genotypes.size()*genotypes.size()); i++){_grm_mkl[i] = (a_gadj + (_grm_mkl[i]*b_gadj));}
-    for(int i = 0; i < 6; i++){Gsummarystats[i] = 0.0;}
+    logfileloc << "            - Blend G ("<<(SimParameters.get_blending_G_A22())[0]<<") with A22 ("<<(SimParameters.get_blending_G_A22())[1]<<"). "<<endl;
+    for(int i = 0; i < (genotypes.size()*genotypes.size()); i++)
+    {
+        _grm_mkl[i] = ((_grm_mkl[i]*(SimParameters.get_blending_G_A22())[0]) + (A22relationship[i]*(SimParameters.get_blending_G_A22())[1]));
+    }
+    for(int i = 0; i < 7; i++){Gsummarystats[i] = 0.0;}
     logfileloc << "            - Final G Matrix Summary Statistics: " << endl;
     MatrixStats(Gsummarystats,_grm_mkl,numbgenotyped,logfileloc);
-    for(int i = 0; i < genotypes.size(); i++){_grm_mkl[(i*genotypes.size())+i] += 0.001;}
+   for(int i = 0; i < genotypes.size(); i++){_grm_mkl[(i*genotypes.size())+i] += 0.001;}
     /* Estimate correlation between grm and A22 for diagonals and off-diagonals */
     vector < double > GA22summarystats(2,0.0);
     MatrixCorrStats(GA22summarystats,_grm_mkl,A22relationship,numbgenotyped,logfileloc);
-
-    
     //MatrixXd G(genotypes.size(),genotypes.size()); /* stores IBD based relationships */
     //for(int i = 0; i < genotypes.size(); i++)
     //{
@@ -3138,10 +3232,10 @@ void H_inverse_function(parameters &SimParameters, vector <Animal> &population,s
     DirectInverse(A22relationship,numbgenotyped);
     DirectInverse(_grm_mkl,numbgenotyped);
     logfileloc << "            - Final A22Inv Matrix Summary Statistics: " << endl;
-    vector < double > A22Invsummarystats(6,0.0);
+    vector < double > A22Invsummarystats(7,0.0);
     MatrixStats(A22Invsummarystats,A22relationship,numbgenotyped,logfileloc);
     logfileloc << "            - Final GInv Matrix Summary Statistics: " << endl;
-    vector < double > GInvsummarystats(6,0.0);
+    vector < double > GInvsummarystats(7,0.0);
     MatrixStats(GInvsummarystats,_grm_mkl,numbgenotyped,logfileloc);
     /****************************/
     /* Generate Ginv - A22inv   */
@@ -3182,8 +3276,109 @@ void H_inverse_function(parameters &SimParameters, vector <Animal> &population,s
     tripletG_A22inv.clear(); tripletAinv.clear();
 }
 
-
-
+/***************************************/
+/* Generate inverse using Gauss_Jordan */
+/***************************************/
+void Gauss_Jordan_Inverse(vector < vector< double > > &Matrix)
+{
+    int n = Matrix[0].size();
+    /* Store full matrix along with an identity matrix */
+    vector< vector < double >> GaussJordan;
+    for(int i = 0; i < n; i++){vector < double > row(n*2,0); GaussJordan.push_back(row);}
+    for(int i = 0; i < n; i++)
+    {
+        for(int j = 0; j < n; j++){GaussJordan[i][j] = Matrix[i][j];}
+    }
+    /*******************/
+    /* Compressed row  */
+    /*******************/
+    vector < int > IA;                  /* elements with new rows */
+    vector < int > IJ;                  /* refers to column number */
+    vector < double > A;                /* Stores the Value */
+    int numberstored = 0;               /* Used to create IA for each new row */
+    for(int i = 0; i < n; i++)
+    {
+        /* Get position for new elements */
+        if(IA.size() == 0){
+            IA.push_back(0);
+        }else {IA.push_back(numberstored);}
+        /* now loop through columns and find non-zeros */
+        for(int j = i; j < n; j++)
+        {
+            /* If it doesn't equal zero than store in ija */
+            if(GaussJordan[i][j] != 0){IJ.push_back(j); A.push_back(GaussJordan[i][j]); numberstored++;}
+        }
+    }
+    /* Print the associated Matrix */
+    //for(int i = 0; i < n; i++)
+    //{
+    //    for(int j = 0; j < 2*n; j++){cout << GaussJordan[i][j] << " ";}
+    //    cout << endl;
+    //}
+    //cout << endl;
+    /*****************************************/
+    /* Gauss-Jordan Elimation on full matrix */
+    /*****************************************/
+    /* Set up and put ones on the diagonal of Identity matrix */
+    for(int i = 0; i < n; i++)
+    {
+        for(int j = 0; j < 2*n; j++)
+        {
+            if(j == (i + n)){GaussJordan[i][j] = 1;}
+        }
+    }
+    /* Start partial pivoting */
+    for(int j = 0; j < n; j++)
+    {
+        int temp = j;
+        for(int i = j+1; i < n; i++)
+        {
+            if(GaussJordan[i][j] > GaussJordan[temp][j]){temp=i;} /* Find the greatest pivot element */
+        }
+        if(fabs(GaussJordan[temp][j]) < -0.0005)
+        {
+            cout << "\n Values are too small for variable types." << endl;
+            exit (EXIT_FAILURE);
+        }
+        // Now swap row which has maximum jth column element
+        if(temp != j)
+        {
+            for(int k = 0; k < 2*n; k++)
+            {
+                double temporary=GaussJordan[j][k] ;
+                GaussJordan[j][k]=GaussJordan[temp][k] ;
+                GaussJordan[temp][k]=temporary ;
+            }
+        }
+        // Now doing row option and usual pivoting //
+        for(int i=0; i < n; i++)
+        {
+            if(i!=j){
+                double rowMultiplier = GaussJordan[i][j];
+                for(int k = 0; k < 2*n; k++)
+                {
+                    GaussJordan[i][k]-=(GaussJordan[j][k]/GaussJordan[j][j])*rowMultiplier;
+                }
+            } else {
+                double rowMultiplier = GaussJordan[i][j];
+                for(int k=0; k < 2*n; k++)
+                {
+                    GaussJordan[i][k]/=rowMultiplier;
+                }
+            }
+        }
+    }
+    /* Once Finished Now Update Matrix */
+    //for(int i = 0; i < n; i++)
+    //{
+    //    for(int j = n; j < 2*n; j++){cout << GaussJordan[i][j] << "\t";}
+    //    cout << endl;
+    //}
+    for(int i = 0; i < n; i++)
+    {
+        for(int j = n; j < 2*n; j++){Matrix[i][j-n] = GaussJordan[i][j];}
+    }
+}
 
 /****************************************************************************************************************************************/
 /****************************************************************************************************************************************/
@@ -3205,16 +3400,12 @@ void pcg_solver_dense(vector <tuple<int,int,double>> &lhs_sparse,vector <double>
     for(int i = 0; i < lhs_sparse.size(); i++)
     {
         lhs[(get<0>(lhs_sparse[i])*dimen)+get<1>(lhs_sparse[i])] += get<2>(lhs_sparse[i]);
-        if(get<0>(lhs_sparse[i]) != get<1>(lhs_sparse[i]))
-        {
-            lhs[(get<1>(lhs_sparse[i])*dimen)+get<0>(lhs_sparse[i])] += get<2>(lhs_sparse[i]);
-        }
     }
     double* rhs = new double[dimen];                                                     /* RHS dimension: animal + intercept by 1 */
     for(int i = 0; i < rhs_sparse.size(); i++){rhs[i] = rhs_sparse[i];}
-    //for(int i = 0; i < 5; i++)
+    //for(int i = 0; i < 10; i++)
     //{
-    //    for(int j = 0; j < 5; j++){cout << lhs[(i*dimen)+j] << " ";}
+    //    for(int j = 0; j < 10; j++){cout << lhs[(i*dimen)+j] << "\t";}
     //    cout << endl;
     //}
     //for(int i = 0; i < 5; i++){cout << rhs[i] << endl;}
@@ -3316,6 +3507,24 @@ void pcg_solver_dense(vector <tuple<int,int,double>> &lhs_sparse,vector <double>
 /********************************************/
 void pcg_solver_sparse(vector <tuple<int,int,double>> &lhs_sparse,vector <double> &rhs_sparse, vector <double> &solutionsa, int dimen, int* solvediter)
 {
+    //cout << lhs_sparse.size() << endl;
+    //double* a = new double[lhs_sparse.size()];      /* Array containing non-zero elements of the matrix LHS */
+    /* only keep upper diagonal */
+    //for(int i = 0; i < lhs_sparse.size(); i++)
+    //{
+    //    if(get<0>(lhs_sparse[i]) > get<1>(lhs_sparse[i]))
+    //    {
+    //        lhs_sparse.erase(lhs_sparse.begin()+i);
+    //        //cout << "'" << get<0>(lhs_sparse[i]) << "' '" << get<1>(lhs_sparse[i]) << "' '" << get<2>(lhs_sparse[i]) << "\t";
+    //    }
+    //}
+    //cout << lhs_sparse.size() << endl;
+    //for(int i = 0; i < lhs_sparse.size(); i++)
+    //{
+    //    cout << "'" << get<0>(lhs_sparse[i]) << "' '" << get<1>(lhs_sparse[i]) << "' '" << get<2>(lhs_sparse[i]) << "\t";
+    //
+    //}
+    //cout << endl;
     using Eigen::SparseMatrix; using Eigen::MatrixXd; using Eigen::VectorXd;
     /************************************************************/
     /**            Initialize all the variables                **/
@@ -3360,6 +3569,34 @@ void pcg_solver_sparse(vector <tuple<int,int,double>> &lhs_sparse,vector <double
     }
     LHS.setFromTriplets(tripletListLHS.begin(),tripletListLHS.end()); lhs_sparse.clear();
     Minv.setFromTriplets(tripletListMinv.begin(),tripletListMinv.end());
+    //MatrixXd dMat;
+    //dMat = MatrixXd(LHS);
+    //for(int i = 0; i < 15; i++)
+    //{
+    //    for(int j = 0; j < 15; j++){cout << dMat(i,j) << "\t";}
+    //    cout << endl;
+    //}
+    //fstream Check; Check.open("LHS", std::fstream::out | std::fstream::trunc); Check.close();
+    //std::ofstream output9("LHS", std::ios_base::app | std::ios_base::out);
+    /* output relationship matrix */
+    //for(int i = 0; i < dimen; i++)
+    //{
+    //    for(int j = 0; j < dimen; j++)
+    //    {
+    //        if(j == 0){output9 << dMat(i,j);}
+    //        if(j > 0){output9 << " " << dMat(i,j);}
+    //    }
+    //    output9 << endl;
+    //}
+    /* output rest of them */
+    //for(int i = 0; i < dimen; i++)
+    //{
+    //    for(int j = 0; j < dimen; j++)
+    //    {
+    //        cout << dMat(i,j) << " ";
+    //    }
+    //    cout << endl;
+    //}
     /* inverse of diagonals is just 1 / diagonal of LHS */
     for(int i = 0; i < dimen; i++){Minv.coeffRef(i,i) = 1 / Minv.coeffRef(i,i);}
     /************************************************************/
@@ -3413,7 +3650,7 @@ void pcg_solver_sparse(vector <tuple<int,int,double>> &lhs_sparse,vector <double
 /******************************************************************/
 /* Solve for solutions but need to convert from sparse to dense   */
 /******************************************************************/
-void direct_solversparse(parameters &SimParameters,vector <tuple<int,int,double>> &lhs_sparse,vector <double> &rhs_sparse, vector <double> &solutionsa, vector <double> &trueaccuracy,int dimen)
+void direct_solversparse(parameters &SimParameters,vector <tuple<int,int,double>> &lhs_sparse,vector <double> &rhs_sparse, vector <double> &solutionsa, vector <double> &trueaccuracy,int dimen,int traits)
 {
     double* lhs = new double[dimen*dimen];                                 /* LHS dimension: animal + intercept by animal + intercept */
     for(int i = 0; i < (dimen*dimen); i++){lhs[i] = 0;}
@@ -3454,12 +3691,27 @@ void direct_solversparse(parameters &SimParameters,vector <tuple<int,int,double>
             lhs[(j_p*n)+i_p] = lhs[(i_p*n)+j_p];
         }
     }
-    /* Generate Accuracy */
-    double lambda = (1 - SimParameters.getVarAdd()) / double(SimParameters.getVarAdd());
-    //cout << "Lambda: " << (1 - SimParameters.getVarAdd()) / double(SimParameters.getVarAdd()) << endl;
-    //for(int i = 1; i < 10; i++){cout << lhs[(i*n)+i] << endl;}
-    for(int i = 1; i < dimen; i++){trueaccuracy[i-1] = sqrt(1 - (lhs[(i*n)+i]*lambda));}
-    //for(int i = 0; i < 9; i++){cout << accuracy[i-1] << endl;}
+    if(traits == 1)
+    {
+        /* Generate Accuracy */
+        double lambda = (1-(SimParameters.get_Var_Additive())[0]) / double((SimParameters.get_Var_Additive())[0]);
+        //for(int i = 1; i < 10; i++){cout << lhs[(i*n)+i] << endl;}
+        for(int i = 1; i < dimen; i++){trueaccuracy[i-1] = sqrt(1 - (lhs[(i*n)+i]*lambda));}
+        //for(int i = 0; i < 9; i++){cout << accuracy[i-1] << endl;}
+    }
+    if(traits == 2)
+    {
+        int animwithintrt = (solutionsa.size()-2)*0.50;
+        for(int i = 2; i < dimen; i++)
+        {
+            if(i < (animwithintrt+2))
+            {
+                trueaccuracy[i-2] = sqrt(((SimParameters.get_Var_Additive())[0] -(lhs[(i*n)+i])) / double((SimParameters.get_Var_Additive())[0]));
+            } else {
+                trueaccuracy[i-2] = sqrt(((SimParameters.get_Var_Additive())[2] -(lhs[(i*n)+i])) / double((SimParameters.get_Var_Additive())[2]));
+            }
+        }
+    }
     const long long int lhssize = dimen;
     const long long int onesize = 1;
     cblas_dgemm(CblasRowMajor,CblasNoTrans,CblasNoTrans,lhssize,onesize,lhssize,1.0,lhs,lhssize,rhs,onesize,0.0,solutions,onesize);
@@ -3470,11 +3722,11 @@ void direct_solversparse(parameters &SimParameters,vector <tuple<int,int,double>
 /****************************************************/
 /* Solve EBV based on Bayesian Marker Effects Model */
 /****************************************************/
-void bayesianestimates(parameters &SimParameters,vector <Animal> &population,string Master_DF_File, string Pheno_GMatrix_File, string Pheno_Pedigree_File, int Gen,vector <double> &estimatedsolutions,string Bayes_MCMC_Samples,string Bayes_PosteriorMeans, ostream& logfileloc)
+void bayesianestimates(parameters &SimParameters,vector <Animal> &population,int Gen ,vector <double> &estimatedsolutions,outputfiles &OUTPUTFILES,ostream& logfileloc)
 {
     /* Initialize Parameters that will be filled */
     int Bayesseednumber = SimParameters.getSeed();                          /* Inititial seed to make sure it is reproducible */
-    double R2 = SimParameters.getVarAdd();                                  /* Narrow sense heritability */
+    double R2 = (SimParameters.get_Var_Additive())[0];                      /* Narrow sense heritability */
     vector < int > animalid;                                                /* ID of individual */
     vector < double > phenotype;                                            /* Phenotype of an individual */
     vector < string > genotype;                                             /* genotype for an individual as a string */
@@ -3499,7 +3751,7 @@ void bayesianestimates(parameters &SimParameters,vector <Animal> &population,str
     /*******************************/
     vector <string> numbers; string line;                                               /* Import file and put each row into a vector */
     ifstream infile9;
-    infile9.open(Pheno_Pedigree_File.c_str());
+    infile9.open(OUTPUTFILES.getloc_Pheno_Pedigree().c_str());
     if(infile9.fail()){cout << "Error Opening Phenotype File \n"; exit (EXIT_FAILURE);}
     while (getline(infile9,line)){numbers.push_back(line);}     /* Stores in vector and each new line push back to next space */
     for(int i = 0; i < numbers.size(); i++)
@@ -3514,7 +3766,7 @@ void bayesianestimates(parameters &SimParameters,vector <Animal> &population,str
     if(referencegen.size() < Gen)
     {
         //cout << fullanim.size() << " " << fullsire.size() << " " << fulldam.size() << endl;
-        //cout << SimParameters.getreferencegenblup() << endl;
+        ///cout << SimParameters.getreferencegenblup() << endl;
         /***********************************************/
         /* Grab the animals that are currently progeny */
         /***********************************************/
@@ -3605,8 +3857,8 @@ void bayesianestimates(parameters &SimParameters,vector <Animal> &population,str
     /**********************************************************************************/
     numbers.clear();
     ifstream infile1; int indexintrainanim = 0;
-    infile1.open(Pheno_GMatrix_File.c_str());
-    if(infile1.fail()){cout << "Error Opening Phenotype File \n"; exit (EXIT_FAILURE);}
+    infile1.open(OUTPUTFILES.getloc_Pheno_GMatrix().c_str());
+    if(infile1.fail()){cout << "Error Opening GMatrix File \n"; exit (EXIT_FAILURE);}
     while (getline(infile1,line))
     {
         size_t pos = line.find(" ", 0); int tempanim = (std::stoi(line.substr(0,pos))); line.erase(0,pos + 1);
@@ -3723,7 +3975,7 @@ void bayesianestimates(parameters &SimParameters,vector <Animal> &population,str
     /* Read in previous mcmc chain if possible */
     /*******************************************/
     ifstream infile3;
-    infile3.open(Bayes_PosteriorMeans.c_str());
+    infile3.open(OUTPUTFILES.getloc_Bayes_PosteriorMeans().c_str());
     if(infile3.fail()){cout << "Error Opening Phenotype File \n"; exit (EXIT_FAILURE);}
     while (getline(infile3,line)){numbers.push_back(line);}     /* Stores in vector and each new line push back to next space */
     string tagdecreasewindow = numbers[0];
@@ -4123,8 +4375,10 @@ void bayesianestimates(parameters &SimParameters,vector <Animal> &population,str
         logfileloc << "         - Posterior mean residual variance: " << postresidual << endl;
         logfileloc << "         - Posterior mean scale parameter for markers: " << postmarkervar << endl;
         /* Save posteriormeans to file for priors for next generation */
-        fstream checkbayes; checkbayes.open(Bayes_PosteriorMeans.c_str(), std::fstream::out | std::fstream::trunc); checkbayes.close();
-        std::ofstream flagbayes(Bayes_PosteriorMeans.c_str(), std::ios_base::app | std::ios_base::out);
+        fstream checkbayes;
+        checkbayes.open(OUTPUTFILES.getloc_Bayes_PosteriorMeans().c_str(), std::fstream::out | std::fstream::trunc);
+        checkbayes.close();
+        std::ofstream flagbayes(OUTPUTFILES.getloc_Bayes_PosteriorMeans().c_str(), std::ios_base::app | std::ios_base::out);
         flagbayes << "PosteriorMeansPrior" << endl;
         flagbayes << postresidual << endl;
         flagbayes << postmarkervar << endl;
@@ -4139,8 +4393,10 @@ void bayesianestimates(parameters &SimParameters,vector <Animal> &population,str
         logfileloc << "         - Posterior mean residual variance: " << postresidual << endl;
         logfileloc << "         - Posterior mean marker variance: " << postvarb << endl;
         /* Save posteriormeans to file for priors for next generation */
-        fstream checkbayes; checkbayes.open(Bayes_PosteriorMeans.c_str(), std::fstream::out | std::fstream::trunc); checkbayes.close();
-        std::ofstream flagbayes(Bayes_PosteriorMeans.c_str(), std::ios_base::app | std::ios_base::out);
+        fstream checkbayes;
+        checkbayes.open(OUTPUTFILES.getloc_Bayes_PosteriorMeans().c_str(), std::fstream::out | std::fstream::trunc);
+        checkbayes.close();
+        std::ofstream flagbayes(OUTPUTFILES.getloc_Bayes_PosteriorMeans().c_str(), std::ios_base::app | std::ios_base::out);
         flagbayes << "PosteriorMeansPrior" << endl;
         flagbayes << postresidual << endl;
         flagbayes << postb[0];
@@ -4154,8 +4410,10 @@ void bayesianestimates(parameters &SimParameters,vector <Animal> &population,str
         logfileloc << "         - Posterior mean scale parameter for markers: " << postmarkervar << endl;
         if(SimParameters.getpie_f() == "estimate"){logfileloc << "         - Posterior mean pi parameter: " << postpi << endl;}
         /* Save posteriormeans to file for priors for next generation */
-        fstream checkbayes; checkbayes.open(Bayes_PosteriorMeans.c_str(), std::fstream::out | std::fstream::trunc); checkbayes.close();
-        std::ofstream flagbayes(Bayes_PosteriorMeans.c_str(), std::ios_base::app | std::ios_base::out);
+        fstream checkbayes;
+        checkbayes.open(OUTPUTFILES.getloc_Bayes_PosteriorMeans().c_str(), std::fstream::out | std::fstream::trunc);
+        checkbayes.close();
+        std::ofstream flagbayes(OUTPUTFILES.getloc_Bayes_PosteriorMeans().c_str(), std::ios_base::app | std::ios_base::out);
         flagbayes << "PosteriorMeansPrior" << endl;
         flagbayes << postresidual << endl;
         flagbayes << postmarkervar << endl;
@@ -4175,8 +4433,10 @@ void bayesianestimates(parameters &SimParameters,vector <Animal> &population,str
         logfileloc << "         - Posterior mean marker variance: " << postvarb << endl;
         if(SimParameters.getpie_f() == "estimate"){logfileloc << "         - Posterior mean pi parameter: " << postpi << endl;}
         /* Save posteriormeans to file for priors for next generation */
-        fstream checkbayes; checkbayes.open(Bayes_PosteriorMeans.c_str(), std::fstream::out | std::fstream::trunc); checkbayes.close();
-        std::ofstream flagbayes(Bayes_PosteriorMeans.c_str(), std::ios_base::app | std::ios_base::out);
+        fstream checkbayes;
+        checkbayes.open(OUTPUTFILES.getloc_Bayes_PosteriorMeans().c_str(), std::fstream::out | std::fstream::trunc);
+        checkbayes.close();
+        std::ofstream flagbayes(OUTPUTFILES.getloc_Bayes_PosteriorMeans().c_str(), std::ios_base::app | std::ios_base::out);
         flagbayes << "PosteriorMeansPrior" << endl;
         flagbayes << postresidual << endl;
         if(SimParameters.getpie_f() == "estimate"){flagbayes << postpi << endl;}
@@ -4193,9 +4453,9 @@ void bayesianestimates(parameters &SimParameters,vector <Animal> &population,str
     /* Delete old mcmc run and output saved mcmc samples */
     //stringstream s2; s2 << Gen; string tempvara = s2.str();
     //string tempfile = Bayes_MCMC_Samples + tempvara;
-    fstream checkmcmc; checkmcmc.open(Bayes_MCMC_Samples.c_str(), std::fstream::out | std::fstream::trunc); checkmcmc.close();
+    fstream checkmcmc; checkmcmc.open(OUTPUTFILES.getloc_Bayes_MCMC_Samples().c_str(), std::fstream::out | std::fstream::trunc); checkmcmc.close();
     int outiteration = SimParameters.getburnin()+1;
-    std::ofstream mcmcfile(Bayes_MCMC_Samples.c_str(), std::ios_base::out);               /* open mcmc file to output samples */
+    std::ofstream mcmcfile(OUTPUTFILES.getloc_Bayes_MCMC_Samples().c_str(), std::ios_base::out);               /* open mcmc file to output samples */
     if(SimParameters.getmethod() == "BayesA" || SimParameters.getmethod() == "BayesRidgeRegression"){mcmcfile << "Sample Residual MarkerVar" <<endl;}
     if(SimParameters.getmethod() == "BayesC" && SimParameters.getpie_f() == "estimate"){mcmcfile << "Sample Residual MarkerVar Pi" <<endl;}
     if(SimParameters.getmethod() == "BayesC" && SimParameters.getpie_f() == "fix"){mcmcfile << "Sample Residual MarkerVar" <<endl;}
@@ -4232,7 +4492,7 @@ void bayesianestimates(parameters &SimParameters,vector <Animal> &population,str
         int j = 0;                                                  /* Counter for population spot */
         while(j < animalid.size())
         {
-            if(population[i].getID() == animalid[j]){population[i].Update_EBV(estimatedsolutions[j]); break;}
+            if(population[i].getID() == animalid[j]){population[i].update_EBVvect(0,estimatedsolutions[j]); break;}
             j++;
         }
     }
@@ -4279,8 +4539,7 @@ void direct_solver(parameters &SimParameters,vector <Animal> &population,double*
         }
     }
     /* Generate Accuracy */
-    double lambda = (1 - SimParameters.getVarAdd()) / double(SimParameters.getVarAdd());
-    //cout << "Lambda: " << (1 - SimParameters.getVarAdd()) / double(SimParameters.getVarAdd()) << endl;
+    double lambda = (1-(SimParameters.get_Var_Additive())[0]) / double((SimParameters.get_Var_Additive())[0]);
     //for(int i = 1; i < 10; i++){cout << lhs[(i*n)+i] << endl;}
     for(int i = 1; i < dimen; i++){trueaccuracy[i-1] = sqrt(1 - (lhs[(i*n)+i]*lambda));}
     //for(int i = 0; i < 9; i++){cout << accuracy[i-1] << endl;}
@@ -4375,12 +4634,12 @@ void p_or_g_blup(parameters &SimParameters,vector <Animal> &population,double* r
         {
             if(population[i].getID() == animal[j])
             {
-                population[i].Update_EBV(estimatedsolutions[j+1]);
+                population[i].update_EBVvect(0,estimatedsolutions[j+1]);
                 if(SimParameters.getSolver() == "direct")
                 {
                     if(SimParameters.getEBV_Calc()!="gblup" && SimParameters.getConstructGFreq()!="observed" && SimParameters.getGener()==SimParameters.getreferencegenblup())
                     {
-                        population[i].Update_Acc(trueaccuracy[j]);
+                        population[i].update_Accvect(0,trueaccuracy[j]);
                     }
                 }
                 break;
@@ -4388,13 +4647,6 @@ void p_or_g_blup(parameters &SimParameters,vector <Animal> &population,double* r
             j++;
         }
     }
-    //for(int i = 0; i < population.size(); i++)
-    //{
-    //    if(population[i].getSex() == 0)
-    //    {
-    //        cout<<population[i].getID()<<" "<<population[i].getProgeny()<<" "<<population[i].getEBV()<<" "<<population[i].getAcc()<<endl;
-    //    }
-    //}
     delete[] LHSarray; delete[] RHSarray;
 }
 /*********************************************************/

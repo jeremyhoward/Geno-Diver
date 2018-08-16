@@ -47,6 +47,7 @@ void parameters::UpdateGamma_Shape(double temp){Gamma_Shape = temp;}
 void parameters::UpdateGamma_Scale(double temp){Gamma_Scale = temp;}
 void parameters::UpdateNormal_meanRelDom(double temp){Normal_meanRelDom = temp;}
 void parameters::UpdateNormal_varRelDom(double temp){Normal_varRelDom= temp;}
+void parameters::UpdateQuantParam(std::string temp){QuantParam = temp;}
 void parameters::UpdateGamma_Shape_Lethal(double temp){Gamma_Shape_Lethal = temp;}
 void parameters::UpdateGamma_Scale_Lethal(double temp){Gamma_Scale_Lethal = temp;}
 void parameters::UpdateNormal_meanRelDom_Lethal(double temp){Normal_meanRelDom_Lethal = temp;}
@@ -64,8 +65,7 @@ void parameters::Updatefounderfemale(int temp){founderfemale = temp;}
 void parameters::Updatefounderselect(std::string temp){founderselect = temp;}
 void parameters::UpdateGenfoundsel(int temp){generationsfounderselect = temp;}
 void parameters::Updatefnd_haplo(int temp){fnd_haplo = temp;}
-void parameters::UpdateVarAdd(double temp){Variance_Additiveh2 = temp;}
-void parameters::UpdateVarDom(double temp){Variance_Dominanceh2 = temp;}
+void parameters::Updatenumbertraits(int temp){numberoftraits = temp;}
 void parameters::UpdateGener(int temp){GENERATIONS = temp;}
 void parameters::UpdateSires(int temp){SIRES = temp;}
 void parameters::UpdateSireRepl(double temp){SireReplacement = temp;}
@@ -74,7 +74,6 @@ void parameters::UpdateDamRepl(double temp){DamReplacement = temp;}
 void parameters::UpdateOffspring(int temp){OffspringPerMating = temp;}
 void parameters::UpdateSelection(std::string temp){Selection = temp;}
 void parameters::UpdateSelectionDir(std::string temp){SelectionDir = temp;}
-void parameters::UpdateAtSelectionHas(std::string temp){AtSelectionHas = temp;}
 void parameters::Updatemaxmating(int temp){maxmating = temp;}
 void parameters::UpdateEBV_Calc(std::string temp){EBV_Calc = temp;}
 void parameters::UpdateCulling(std::string temp){Culling = temp;}
@@ -120,6 +119,10 @@ void parameters::UpdateMalePropGenotype(double temp){MalePropGenotype = temp;}
 void parameters::UpdateMaleWhoGenotype(std::string temp){MaleWhoGenotype = temp;}
 void parameters::UpdateFemalePropGenotype(double temp){FemalePropGenotype = temp;}
 void parameters::UpdateFemaleWhoGenotype(std::string temp){FemaleWhoGenotype = temp;}
+void parameters::UpdateGenotypePortionofDistribution(std::string temp){GenotypePortionofDistribution = temp;}
+void parameters::UpdateInterim_EBV(std::string temp){Interim_EBV = temp;}
+void parameters::UpdateImputationFile(std::string temp){ImputationFile = temp;}
+
 
 ////////////////////////////////////////////////////////////////////////////////////
 ///////////        Read in Parameter File and Fill Parameter Class       ///////////
@@ -273,7 +276,8 @@ void read_generate_parameters(parameters &SimParameters, string parameterfile, s
             }
             break;
         }
-        search++; if(search >= parm.size()){cout << endl << "Couldn't find 'CHR_LENGTH:' variable in parameter file!" << endl; exit (EXIT_FAILURE);}
+        search++;
+        if(search >= parm.size()){cout << endl << "Couldn't find 'CHR_LENGTH:' variable in parameter file!" << endl; exit (EXIT_FAILURE);}
     }
     /* Check to ensure isn't 0 which can happen if leave a blank when you give one less */
     for(int i = 0; i < SimParameters.getChr(); i++)
@@ -344,8 +348,8 @@ void read_generate_parameters(parameters &SimParameters, string parameterfile, s
         search++;
         if(search >= parm.size())
         {
-            SimParameters.UpdateThresholdMAFMark(0.10);
-            logfilestring = logfilestring + "        - Minor Allele Frequency Threshold for Markers:\t\t\t\t\t\t'0.10' (Default)\n"; break;
+            SimParameters.UpdateThresholdMAFMark(0.05);
+            logfilestring = logfilestring + "        - Minor Allele Frequency Threshold for Markers:\t\t\t\t\t\t'0.05' (Default)\n"; break;
         }
     }
     if(SimParameters.getThresholdMAFMark() >= 0.5)
@@ -416,8 +420,8 @@ void read_generate_parameters(parameters &SimParameters, string parameterfile, s
         search++;
         if(search >= parm.size())
         {
-            SimParameters.UpdateThresholdMAFQTL(0.05);
-            logfilestring = logfilestring + "        - Minor Allele Frequency Threshold for Quantitative Trait QTL's:\t\t\t\t'0.05' (Default)\n"; break;
+            SimParameters.UpdateThresholdMAFQTL(0.01);
+            logfilestring = logfilestring + "        - Minor Allele Frequency Threshold for Quantitative Trait QTL's:\t\t\t\t'0.01' (Default)\n"; break;
         }
     }
     if(SimParameters.getThresholdMAFQTL() >= 0.5)
@@ -745,6 +749,49 @@ void read_generate_parameters(parameters &SimParameters, string parameterfile, s
             logfilestring=logfilestring+"        - Normal SD: Dominance Quantitative Trait:\t\t\t\t\t\t\t'0.2' (Default)\n"; break;
         }
     }
+    search = 0;
+    while(1)
+    {
+        size_t fnd = parm[search].find("QUANTITATIVE_PARAMETERIZATION:");
+        if(fnd!=std::string::npos)
+        {
+            size_t pos = parm[search].find(":", 0); parm[search].erase(0, pos + 1);
+            vector < string > solvervariables(5,"");
+            for(int i = 0; i < 5; i++)
+            {
+                size_t pos = parm[search].find(" ",0);
+                solvervariables[i] = parm[search].substr(0,pos);
+                solvervariables[i].erase(remove(solvervariables[i].begin(), solvervariables[i].end(), ' '),solvervariables[i].end());
+                if(pos != std::string::npos){parm[search].erase(0, pos + 1);}
+                if(pos == std::string::npos){parm[search].clear(); i = 5;}
+            }
+            int start = 0;
+            while(start < solvervariables.size())
+            {
+                if(solvervariables[start] == ""){solvervariables.erase(solvervariables.begin()+start);}
+                if(solvervariables[start] != ""){start++;}
+            }
+            if(solvervariables.size() != 1)
+            {
+                cout << endl << "        - Should be one parameter for QUANTITATIVE_PARAMETERIZATION!" << endl;
+                exit (EXIT_FAILURE);
+            }
+            if(solvervariables[0] != "biological" && solvervariables[0] != "statistical")
+            {
+                cout << endl << "        - Wrong parameter for QUANTITATIVE_PARAMETERIZATION. Check Manual." << endl; exit (EXIT_FAILURE);
+            }
+            logfilestring=logfilestring+"        - True breeding values and dominance deviation parameterized based on: \t\t\t'";
+            logfilestring=logfilestring+solvervariables[0] + "' model. \n";
+            SimParameters.UpdateQuantParam(solvervariables[0]); break;
+        }
+        search++;
+        if(search >= parm.size())
+        {
+            SimParameters.UpdateQuantParam("biological");
+            logfilestring=logfilestring+"        - True breeding values and dominance deviation parameterized based on: \t\t\t'";
+            logfilestring=logfilestring+"biological' model. (Default)\n"; break;
+        }
+    }
     search = 0; string templethalqtl;
     while(1)
     {
@@ -776,9 +823,9 @@ void read_generate_parameters(parameters &SimParameters, string parameterfile, s
         search++;
         if(search >= parm.size())
         {
-            SimParameters.UpdateGamma_Shape_Lethal(70.0); SimParameters.UpdateGamma_Scale_Lethal(0.01);
-            templethalqtl = templethalqtl+"        - Gamma Shape: S value Fitness Lethal:\t\t\t\t\t\t\t'70.0' (Default)\n";
-            templethalqtl = templethalqtl+"        - Gamma Scale: S value Fitness Lethal:\t\t\t\t\t\t\t'0.01' (Default)\n"; break;
+            SimParameters.UpdateGamma_Shape_Lethal(900.0); SimParameters.UpdateGamma_Scale_Lethal(0.001);
+            templethalqtl = templethalqtl+"        - Gamma Shape: S value Fitness Lethal:\t\t\t\t\t\t\t'900.0' (Default)\n";
+            templethalqtl = templethalqtl+"        - Gamma Scale: S value Fitness Lethal:\t\t\t\t\t\t\t'0.001' (Default)\n"; break;
         }
     }
     search = 0;
@@ -1076,15 +1123,40 @@ void read_generate_parameters(parameters &SimParameters, string parameterfile, s
         if(fnd!=std::string::npos)
         {
             size_t pos = parm[search].find(":", 0); parm[search].erase(0, pos + 1);
-            parm[search].erase(remove(parm[search].begin(), parm[search].end(), ' '), parm[search].end());
-            logfilestring = logfilestring+"        - Variance due to additive gene action (Phenotypic variance is 1.0):\t\t\t'" + parm[search] + "'\n";
-            SimParameters.UpdateVarAdd(atof(parm[search].c_str())); break;
+            vector < string > solvervariables(31,"");
+            for(int i = 0; i < 31; i++)
+            {
+                size_t pos = parm[search].find(" ",0);
+                solvervariables[i] = parm[search].substr(0,pos);
+                solvervariables[i].erase(remove(solvervariables[i].begin(), solvervariables[i].end(), ' '),solvervariables[i].end());
+                if(pos != std::string::npos){parm[search].erase(0, pos + 1);}
+                if(pos == std::string::npos){parm[search].clear(); i = 31;}
+            }
+            int start = 0;
+            while(start < solvervariables.size())
+            {
+                if(solvervariables[start] == ""){solvervariables.erase(solvervariables.begin()+start);}
+                if(solvervariables[start] != ""){start++;}
+            }
+            if(solvervariables.size() != 1 && solvervariables.size() != 3)
+            {
+                cout << endl << "Incorrent number of (co)variances. Needs to be 1 or 3!!" << endl; exit(EXIT_FAILURE);
+            }
+            if(solvervariables.size() == 1)
+            {
+                SimParameters.add_Var_Additive(atof(solvervariables[0].c_str()));
+                logfilestring = logfilestring+"        - Variance due to additive gene action:\t\t\t\t\t\t\t'" + solvervariables[0] + "'\n"; break;
+            }
+            if(solvervariables.size() == 3)
+            {
+                for(int i = 0; i < solvervariables.size(); i++){SimParameters.add_Var_Additive(atof(solvervariables[i].c_str()));}
+                logfilestring = logfilestring+"        - Variance due to additive gene action (Trait 1):\t\t\t\t\t\t'" + solvervariables[0] + "'\n";
+                logfilestring = logfilestring+"        - Variance due to additive gene action (Trait 2):\t\t\t\t\t\t'" + solvervariables[2] + "'\n";
+                logfilestring = logfilestring+"        - Correlation between additive gene action for Trait 1 and 2:\t\t\t\t'" + solvervariables[1] + "'\n";
+                break;
+            }
         }
         search++; if(search >= parm.size()){cout << endl << "Couldn't find 'VARIANCE_A:' variable in parameter file!" << endl; exit (EXIT_FAILURE);}
-    }
-    if(SimParameters.getVarAdd() < 0 || SimParameters.getVarAdd() > 1.0)
-    {
-        cout << endl << "VARIANCE_A outside of range (0.0 - 1.0)! Check parameter file!" << endl; exit (EXIT_FAILURE);
     }
     search = 0;
     while(1)
@@ -1093,15 +1165,128 @@ void read_generate_parameters(parameters &SimParameters, string parameterfile, s
         if(fnd!=std::string::npos)
         {
             size_t pos = parm[search].find(":", 0); parm[search].erase(0, pos + 1);
-            parm[search].erase(remove(parm[search].begin(), parm[search].end(), ' '), parm[search].end());
-            logfilestring = logfilestring+"        - Variance due to dominant gene action (Phenotypic variance is 1.0):\t\t\t'" + parm[search] + "'\n";
-            SimParameters.UpdateVarDom(atof(parm[search].c_str())); break;
+            vector < string > solvervariables(31,"");
+            for(int i = 0; i < 31; i++)
+            {
+                size_t pos = parm[search].find(" ",0);
+                solvervariables[i] = parm[search].substr(0,pos);
+                solvervariables[i].erase(remove(solvervariables[i].begin(), solvervariables[i].end(), ' '),solvervariables[i].end());
+                if(pos != std::string::npos){parm[search].erase(0, pos + 1);}
+                if(pos == std::string::npos){parm[search].clear(); i = 31;}
+            }
+            int start = 0;
+            while(start < solvervariables.size())
+            {
+                if(solvervariables[start] == ""){solvervariables.erase(solvervariables.begin()+start);}
+                if(solvervariables[start] != ""){start++;}
+            }
+            if(solvervariables.size() != 1 && solvervariables.size() != 2)
+            {
+                cout << endl << "Incorrent number of (co)variances. Needs to be 1 or 2!!" << endl; exit(EXIT_FAILURE);
+            }
+            if(solvervariables.size() == 1)
+            {
+                SimParameters.add_Var_Dominance(atof(solvervariables[0].c_str()));
+                logfilestring = logfilestring+"        - Variance due to dominant gene action:\t\t\t\t\t\t\t'" + solvervariables[0] + "'\n"; break;
+            }
+            if(solvervariables.size() == 2)
+            {
+                SimParameters.add_Var_Dominance(atof(solvervariables[0].c_str()));
+                SimParameters.add_Var_Dominance(0.0);
+                SimParameters.add_Var_Dominance(atof(solvervariables[1].c_str()));
+                logfilestring = logfilestring+"        - Variance due to dominance gene action (Trait 1):\t\t\t\t\t\t'" + solvervariables[0] + "'\n";
+                logfilestring = logfilestring+"        - Variance due to dominance gene action (Trait 2):\t\t\t\t\t\t'" + solvervariables[2] + "'\n";
+                break;
+            }
         }
-        search++; if(search >= parm.size()){cout << endl << "Couldn't find 'VARIANCE_D:' variable in parameter file!" << endl; exit (EXIT_FAILURE);}
+        search++;
+        if(search >= parm.size())
+        {
+            if((SimParameters.get_Var_Additive()).size() == 1)
+            {
+                SimParameters.add_Var_Dominance(0.0);
+                logfilestring = logfilestring+"        - Variance due to dominant gene action:\t\t\t\t\t\t\t'0.00' (Default)\n"; break;
+            }
+            if((SimParameters.get_Var_Additive()).size() == 3)
+            {
+                SimParameters.add_Var_Dominance(0.0); SimParameters.add_Var_Dominance(0.0); SimParameters.add_Var_Dominance(0.0);
+                logfilestring = logfilestring+"        - Variance due to dominance gene action (Trait 1):\t\t\t\t\t\t'0.00' (Default)\n";
+                logfilestring = logfilestring+"        - Variance due to dominance gene action (Trait 2):\t\t\t\t\t\t'0.00' (Default)\n"; break;
+            }
+        }
     }
-    if(SimParameters.getVarDom() < 0 || SimParameters.getVarDom() > 1.0)
+    search = 0;
+    while(1)
     {
-        cout << endl << "VARIANCE_D outside of range (0.0 - 1.0)! Check parameter file!" << endl; exit (EXIT_FAILURE);
+        size_t fnd = parm[search].find("VARIANCE_R:");
+        if(fnd!=std::string::npos)
+        {
+            size_t pos = parm[search].find(":", 0); parm[search].erase(0, pos + 1);
+            vector < string > solvervariables(31,"");
+            for(int i = 0; i < 31; i++)
+            {
+                size_t pos = parm[search].find(" ",0);
+                solvervariables[i] = parm[search].substr(0,pos);
+                solvervariables[i].erase(remove(solvervariables[i].begin(), solvervariables[i].end(), ' '),solvervariables[i].end());
+                if(pos != std::string::npos){parm[search].erase(0, pos + 1);}
+                if(pos == std::string::npos){parm[search].clear(); i = 31;}
+            }
+            int start = 0;
+            while(start < solvervariables.size())
+            {
+                if(solvervariables[start] == ""){solvervariables.erase(solvervariables.begin()+start);}
+                if(solvervariables[start] != ""){start++;}
+            }
+            if(solvervariables.size() != 1 && solvervariables.size() != 3)
+            {
+                cout << endl << "Incorrent number of (co)variances. Needs to be 1 or 3!!" << endl; exit(EXIT_FAILURE);
+            }
+            if(solvervariables.size() == 1)
+            {
+                SimParameters.add_Var_Residual(atof(solvervariables[0].c_str()));
+                logfilestring = logfilestring+"        - Variance due to environment:\t\t\t\t\t\t\t\t'" + solvervariables[0] + "'\n"; break;
+            }
+            if(solvervariables.size() == 3)
+            {
+                for(int i = 0; i < solvervariables.size(); i++){SimParameters.add_Var_Residual(atof(solvervariables[i].c_str()));}
+                logfilestring = logfilestring+"        - Residual Variance (Trait 1):\t\t\t\t\t\t\t\t'" + solvervariables[0] + "'\n";
+                logfilestring = logfilestring+"        - Residual Variance (Trait 2):\t\t\t\t\t\t\t\t'" + solvervariables[2] + "'\n";
+                logfilestring = logfilestring+"        - Residual Correlation for Trait 1 and 2:\t\t\t\t\t\t\t'" + solvervariables[1] + "'\n";
+                break;
+            }
+        }
+        search++;
+        if(search >= parm.size())
+        {
+            if((SimParameters.get_Var_Additive()).size() == 1)
+            {
+                double resvar = 1.0 - ((SimParameters.get_Var_Additive())[0] + (SimParameters.get_Var_Dominance())[0]);
+                stringstream s2; s2 << resvar;
+                logfilestring = logfilestring+"        - Variance due to environment:\t\t\t\t\t\t\t\t'" + s2.str() + "' (Default)\n";
+                SimParameters.add_Var_Residual(resvar); break;
+            }
+            if((SimParameters.get_Var_Additive()).size() == 3)
+            {
+                double resvar1 = 1.0 - ((SimParameters.get_Var_Additive())[0] + (SimParameters.get_Var_Dominance())[0]);
+                stringstream s2; s2 << resvar1;
+                double resvar2 = 1.0 - ((SimParameters.get_Var_Additive())[2] + (SimParameters.get_Var_Dominance())[2]);
+                stringstream s3; s3 << resvar2;
+                logfilestring = logfilestring+"        - Variance due to environment (Trait 1):\t\t\t\t\t\t\t'" + s2.str() + "' (Default)\n";
+                logfilestring = logfilestring+"        - Variance due to environment (Trait 2):\t\t\t\t\t\t\t'" + s3.str() + "' (Default)\n";
+                logfilestring = logfilestring+"        - Residual Correlation for Trait 1 and 2:\t\t\t\t\t\t\t'0.00' (Default)\n";
+                SimParameters.add_Var_Residual(resvar1); SimParameters.add_Var_Residual(0.0); SimParameters.add_Var_Residual(resvar2); break;
+            }
+        }
+    }
+    if((SimParameters.get_Var_Additive()).size() == 1 && (SimParameters.get_Var_Dominance()).size() == 1 && (SimParameters.get_Var_Residual()).size()==1)
+    {
+        SimParameters.Updatenumbertraits(1);
+        logfilestring = logfilestring+"        - Number of quantitative traits simulated:\t\t\t\t\t\t\t'1'\n";
+    } else if ((SimParameters.get_Var_Additive()).size()==3 && (SimParameters.get_Var_Dominance()).size()==3 && (SimParameters.get_Var_Residual()).size()==3) {
+        SimParameters.Updatenumbertraits(2);
+        logfilestring = logfilestring+"        - Number of quantitative traits simulated:\t\t\t\t\t\t\t'2'\n";
+    } else {
+        cout << "Incorrect Parameter File for Additive, Dominance or Residual Variance. Check parameter file!!" << endl; exit (EXIT_FAILURE);
     }
     /////////////////////////////////////////////////////////////////////////////////////////
     ///////////             Selection and Culling Parameters Parameters           ///////////
@@ -1180,7 +1365,6 @@ void read_generate_parameters(parameters &SimParameters, string parameterfile, s
         }
         search++; if(search >= parm.size()){cout << endl << "Couldn't find 'PROGENY:' variable in parameter file!" << endl; exit (EXIT_FAILURE);}
     }
-    
     search = 0; string selectionstring;
     while(1)
     {
@@ -1212,12 +1396,11 @@ void read_generate_parameters(parameters &SimParameters, string parameterfile, s
                 logfilestring=logfilestring+"        - Selection Criteria:\t\t\t\t\t\t\t\t\t\t'" + solvervariables[0] + "'\n";
                 logfilestring=logfilestring+"        - Selection Direction:\t\t\t\t\t\t\t\t\t\t'" + solvervariables[1] + "'\n"; break;
             }
-            
         }
         search++;
         if(search >= parm.size()){cout << endl << "Couldn't find 'SELECTION:' variable in parameter file!" << endl; exit (EXIT_FAILURE);}
     }
-    if(SimParameters.getSelection() != "random" && SimParameters.getSelection() != "phenotype" && SimParameters.getSelection() != "true_bv" && SimParameters.getSelection() != "ebv" && SimParameters.getSelection() != "ocs")
+    if(SimParameters.getSelection() != "random" && SimParameters.getSelection() != "phenotype" && SimParameters.getSelection() != "tbv" && SimParameters.getSelection() != "ebv" && SimParameters.getSelection() != "ocs" && SimParameters.getSelection() != "index_tbv" && SimParameters.getSelection() != "index_ebv")
     {
         cout << endl << "SELECTION (" << SimParameters.getSelection() << ") isn't an option! Check parameter file!" << endl; exit (EXIT_FAILURE);
     }
@@ -1225,27 +1408,669 @@ void read_generate_parameters(parameters &SimParameters, string parameterfile, s
     {
         cout << endl << "SELECTIONDIR (" << SimParameters.getSelectionDir() << ") isn't an option! Check parameter file!" << endl; exit (EXIT_FAILURE);
     }
+    /* If chose index option has to be two traits that are being generated */
+    if((SimParameters.getSelection() == "index_tbv" || SimParameters.getSelection() == "index_ebv") && SimParameters.getnumbertraits() != 2)
+    {
+        cout << endl << "Need to simulation two trait to have 'index_tbv' or 'index_ebv' selection." << endl; exit (EXIT_FAILURE);
+    }
     search = 0;
     while(1)
     {
-        size_t fnd = parm[search].find("ATSELECTION:");
+        size_t fnd = parm[search].find("INDEX_PROPORTIONS:");
         if(fnd!=std::string::npos)
         {
+            if(SimParameters.getSelection() != "index_tbv" && SimParameters.getSelection() != "index_ebv")
+            {
+                cout << endl << "Didn't choose 'index_tbv' or 'index_ebv'. Don't need 'INDEX_PROPORTIONS' parameter." << endl; exit (EXIT_FAILURE);
+            }
             size_t pos = parm[search].find(":", 0); parm[search].erase(0, pos + 1);
-            parm[search].erase(remove(parm[search].begin(), parm[search].end(), ' '), parm[search].end());
-            logfilestring=logfilestring+"        - The information a progeny has at selection:\t\t\t\t\t\t'" + parm[search] + "'\n";
-            SimParameters.UpdateAtSelectionHas(parm[search].c_str()); break;
+            vector < string > solvervariables(6,"");            /* expect 2 */
+            for(int i = 0; i < 6; i++)
+            {
+                size_t pos = parm[search].find(" ",0);
+                solvervariables[i] = parm[search].substr(0,pos);
+                solvervariables[i].erase(remove(solvervariables[i].begin(), solvervariables[i].end(), ' '),solvervariables[i].end());
+                if(pos != std::string::npos){parm[search].erase(0, pos + 1);}
+                if(pos == std::string::npos){parm[search].clear();}
+            }
+            int start = 0;
+            while(start < solvervariables.size())
+            {
+                if(solvervariables[start] == ""){solvervariables.erase(solvervariables.begin()+start);}
+                if(solvervariables[start] != ""){start++;}
+            }
+            if(solvervariables.size() != 2){cout << endl << "Need to have two weights (i.e. one for each trait)" << endl; exit (EXIT_FAILURE);}
+            if(((atof(solvervariables[0].c_str()) + (atof(solvervariables[1].c_str()))) != 1.0))
+            {
+                cout << endl << "Sum of index weights doesn't equal one!!" << endl; exit (EXIT_FAILURE);
+            }
+            SimParameters.add_IndexWeights(atof(solvervariables[0].c_str())); SimParameters.add_IndexWeights(atof(solvervariables[1].c_str()));
+            logfilestring = logfilestring+"        - Index Weight for Trait 1:\t\t\t\t\t\t\t\t\t'" + solvervariables[0] + "'\n";
+            logfilestring = logfilestring+"        - Index Weight for Trait 2:\t\t\t\t\t\t\t\t\t'" + solvervariables[1] + "'\n";break;
         }
         search++;
         if(search >= parm.size())
         {
-            SimParameters.UpdateAtSelectionHas("phenotype");
-            logfilestring=logfilestring+"        - The information a progeny has at selection:\t\t\t\t\t\t'phenotype' (Default)\n"; break;
+            if(SimParameters.getSelection() == "index_tbv" || SimParameters.getSelection() == "index_ebv")
+            {
+                cout << endl << "You chose 'index_tbv' or 'index_ebv' option. Need to 'INDEX_PROPORTIONS' parameter." << endl; exit (EXIT_FAILURE);
+            }
+            break;
         }
     }
-    if(SimParameters.getAtSelectionHas() != "phenotype" && SimParameters.getAtSelectionHas() != "nophenotype")
+    search = 0;
+    while(1)
     {
-        cout << endl << "'ATSELECTION' parameter isn't currently available look at manual!" << endl; exit (EXIT_FAILURE);
+        size_t fnd = parm[search].find("PHENOTYPE_STRATEGY:");
+        if(fnd!=std::string::npos)
+        {
+            if(SimParameters.getSelection() != "ebv")
+            {
+                cout << endl << "Need to do 'ebv' selection for 'PHENOTYPE_STRATEGY' option. Change parameter file accordingly!" << endl; exit (EXIT_FAILURE);
+            }
+            size_t pos = parm[search].find(":", 0); parm[search].erase(0, pos + 1);
+            vector < string > solvervariables(12,"");
+            for(int i = 0; i < 12; i++)
+            {
+                pos = parm[search].find(" ",0);
+                solvervariables[i] = parm[search].substr(0,pos);
+                solvervariables[i].erase(remove(solvervariables[i].begin(), solvervariables[i].end(), ' '),solvervariables[i].end());
+                if(pos != std::string::npos){parm[search].erase(0, pos + 1);}
+                if(pos == std::string::npos){parm[search].clear();}
+            }
+            int start = 0;
+            while(start < solvervariables.size())
+            {
+                if(solvervariables[start] == ""){solvervariables.erase(solvervariables.begin()+start);}
+                if(solvervariables[start] != ""){start++;}
+            }
+            //for(int i = 0; i < solvervariables.size(); i++){cout << solvervariables[i] << endl;}
+            if(solvervariables.size() != 4 && solvervariables.size() != 5)
+            {
+                cout<<endl<<"'PHENOTYPE_STRATEGY:' wrong number of parameters. Look at manual."<<endl; exit(EXIT_FAILURE);
+            }
+            if(SimParameters.getnumbertraits() == 2 && SimParameters.getSelection() != "ebv")
+            {
+                cout <<endl<<"Doing more than one trait so need to have 'PHENOTYPE_STRATEGY1:' and 'PHENOTYPE_STRATEGY2:'!. Check parameter file!" << endl;
+            }
+            if(atof(solvervariables[0].c_str()) < 0.0 || atof(solvervariables[0].c_str()) > 1.0)
+            {
+                cout << endl << "PHENOTYPE_STRATEGY (" << solvervariables[0] << ") isn't possible! Check parameter file!" << endl;
+                exit (EXIT_FAILURE);
+            }
+            if(atof(solvervariables[2].c_str()) < 0.0 || atof(solvervariables[2].c_str()) > 1.0)
+            {
+                cout << endl << "PHENOTYPE_STRATEGY (" << solvervariables[2] << ") isn't possible! Check parameter file!" << endl;
+                exit (EXIT_FAILURE);
+            }
+            if(solvervariables[1] != "pheno_atselection" && solvervariables[1] != "pheno_afterselection" && solvervariables[1] != "pheno_parents" && solvervariables[1] != "random_atselection" && solvervariables[1] != "random_afterselection" && solvervariables[1] != "random_parents" && solvervariables[1] != "ebv_atselection" && solvervariables[1] != "ebv_afterselection" && solvervariables[1] != "ebv_parents" && solvervariables[1] != "litterrandom_atselection" && solvervariables[1] != "litterrandom_afterselection")
+            {
+                cout << endl << "PHENOTYPE_STRATEGY (" << solvervariables[1] << ") isn't an option! Check parameter file!" << endl;
+                exit (EXIT_FAILURE);
+            }
+            if(solvervariables[3] != "pheno_atselection" && solvervariables[3] != "pheno_afterselection" && solvervariables[3] != "pheno_parents" &&               solvervariables[3] != "random_atselection" && solvervariables[3] != "random_afterselection" && solvervariables[3] != "random_parents" &&               solvervariables[3] != "ebv_atselection" && solvervariables[3] != "ebv_afterselection" && solvervariables[3] != "ebv_parents" &&               solvervariables[3] != "litterrandom_atselection" && solvervariables[3] != "litterrandom_afterselection")
+            {
+                cout << endl << "PHENOTYPE_STRATEGY (" << solvervariables[3] << ") isn't an option! Check parameter file!" << endl;
+                exit (EXIT_FAILURE);
+            }
+            if(solvervariables.size()==5 && (solvervariables[3]!="ebv_atselection" && solvervariables[3]!="ebv_afterselection" && solvervariables[3]!="ebv_parents" && solvervariables[1]!="ebv_atselection" && solvervariables[1]!="ebv_afterselection" && solvervariables[1]!="ebv_parents"))
+            {
+                cout << endl << "PHENOTYPE_STRATEGY (" << solvervariables[4] << ") is only needed if doing ebv* based phenotype strategy" << endl;
+                exit (EXIT_FAILURE);
+            }
+            if(solvervariables.size()==4)
+            {
+                logfilestring = logfilestring+"        - Phenotyping strategy parameters\n";
+                logfilestring = logfilestring+"             - Proportion of males phenotyped:\t\t\t\t\t\t\t'"+solvervariables[0]+"'\n";
+                logfilestring = logfilestring+"             - Male phenotyping strategy:\t\t\t\t\t\t\t\t'"+solvervariables[1]+"'\n";
+                logfilestring = logfilestring+"             - Proportion of females phenotyped:\t\t\t\t\t\t\t'"+solvervariables[2]+"'\n";
+                logfilestring = logfilestring+"             - Female phenotyping strategy:\t\t\t\t\t\t\t\t'" + solvervariables[3] + "'\n";
+                if(solvervariables[3]=="ebv_atselection" || solvervariables[3]=="ebv_afterselection" || solvervariables[3]=="ebv_parents" || solvervariables[1] =="ebv_atselection" || solvervariables[1] =="ebv_afterselection" || solvervariables[1]=="ebv_parents")
+                {
+                    logfilestring = logfilestring+"             - Portion of ebv distribution animals are phenotyped from: \t\t\t\t'";
+                    logfilestring = logfilestring+SimParameters.getSelectionDir()+"' (Default)\n";
+                }
+                SimParameters.add_MalePropPhenotype_vec(atof(solvervariables[0].c_str()));
+                SimParameters.add_MaleWhoPhenotype_vec(solvervariables[1]);
+                SimParameters.add_FemalePropPhenotype_vec(atof(solvervariables[2].c_str()));
+                SimParameters.add_FemaleWhoPhenotype_vec(solvervariables[3]);
+                SimParameters.add_PortionofDistribution_vec(SimParameters.getSelectionDir()); break;
+            }
+            if(solvervariables.size()==5)
+            {
+                logfilestring = logfilestring+"        - Phenotyping strategy parameters\n";
+                logfilestring = logfilestring+"             - Proportion of males phenotyped:\t\t\t\t\t\t\t'"+solvervariables[0]+"'\n";
+                logfilestring = logfilestring+"             - Male phenotyping strategy:\t\t\t\t\t\t\t\t'"+solvervariables[1]+"'\n";
+                logfilestring = logfilestring+"             - Proportion of females phenotyped:\t\t\t\t\t\t\t'"+solvervariables[2]+"'\n";
+                logfilestring = logfilestring+"             - Female phenotyping strategy:\t\t\t\t\t\t\t\t'" + solvervariables[3] + "'\n";
+                logfilestring = logfilestring+"             - Portion of ebv distribution animals are phenotyped from: \t\t\t\t'"+solvervariables[4]+"'\n";
+                SimParameters.add_MalePropPhenotype_vec(atof(solvervariables[0].c_str()));
+                SimParameters.add_MaleWhoPhenotype_vec(solvervariables[1]);
+                SimParameters.add_FemalePropPhenotype_vec(atof(solvervariables[2].c_str()));
+                SimParameters.add_FemaleWhoPhenotype_vec(solvervariables[3]);
+                SimParameters.add_PortionofDistribution_vec(solvervariables[4]); break;
+            }
+        }
+        search++;
+        if(search >= parm.size())
+        {
+            if(SimParameters.getSelection() == "ebv" || SimParameters.getSelection() == "random" || SimParameters.getSelection() == "phenotype" || SimParameters.getSelection() == "tbv")
+            {
+                SimParameters.add_MalePropPhenotype_vec(1.0);
+                SimParameters.add_MaleWhoPhenotype_vec("pheno_atselection");
+                SimParameters.add_FemalePropPhenotype_vec(1.0);
+                SimParameters.add_FemaleWhoPhenotype_vec("pheno_atselection");
+                SimParameters.add_PortionofDistribution_vec(SimParameters.getSelectionDir());
+                logfilestring = logfilestring+"        - Phenotyping strategy parameters\n";
+                logfilestring = logfilestring+"             - Proportion of males phenotyped:\t\t\t\t\t\t\t'1.0' (Default)\n";
+                logfilestring = logfilestring+"             - Male phenotyping strategy:\t\t\t\t\t\t\t\t'pheno_atselection' (Default)\n";
+                logfilestring = logfilestring+"             - Proportion of females phenotyped:\t\t\t\t\t\t\t'1.0' (Default)\n";
+                logfilestring = logfilestring+"             - Female phenotyping strategy:\t\t\t\t\t\t\t\t'pheno_atselection' (Default)\n"; break;
+            } else {break;}
+        }
+    }
+    search = 0;
+    while(1)
+    {
+        size_t fnd = parm[search].find("PHENOTYPE_STRATEGY1:");
+        if(fnd!=std::string::npos)
+        {
+            if(SimParameters.getSelection() != "index_ebv")
+            {
+                cout << endl << "Need to do 'index_ebv' selection for this option. Change parameter file accordingly!" << endl; exit (EXIT_FAILURE);
+            }
+            size_t pos = parm[search].find(":", 0); parm[search].erase(0, pos + 1);
+            vector < string > solvervariables(12,"");
+            for(int i = 0; i < 12; i++)
+            {
+                pos = parm[search].find(" ",0);
+                solvervariables[i] = parm[search].substr(0,pos);
+                solvervariables[i].erase(remove(solvervariables[i].begin(), solvervariables[i].end(), ' '),solvervariables[i].end());
+                if(pos != std::string::npos){parm[search].erase(0, pos + 1);}
+                if(pos == std::string::npos){parm[search].clear();}
+            }
+            int start = 0;
+            while(start < solvervariables.size())
+            {
+                if(solvervariables[start] == ""){solvervariables.erase(solvervariables.begin()+start);}
+                if(solvervariables[start] != ""){start++;}
+            }
+            //for(int i = 0; i < solvervariables.size(); i++){cout << solvervariables[i] << endl;}
+            if(solvervariables.size() != 4 && solvervariables.size() != 5)
+            {
+                cout<<endl<<"'PHENOTYPE_STRATEGY1:' wrong number of parameters. Look at manual."<<endl; exit(EXIT_FAILURE);
+            }
+            if(atof(solvervariables[0].c_str()) < 0.0 || atof(solvervariables[0].c_str()) > 1.0)
+            {
+                cout << endl << "PHENOTYPE_STRATEGY1 (" << solvervariables[0] << ") isn't possible! Check parameter file!" << endl;
+                exit (EXIT_FAILURE);
+            }
+            if(atof(solvervariables[2].c_str()) < 0.0 || atof(solvervariables[2].c_str()) > 1.0)
+            {
+                cout << endl << "PHENOTYPE_STRATEGY1 (" << solvervariables[2] << ") isn't possible! Check parameter file!" << endl;
+                exit (EXIT_FAILURE);
+            }
+            if(solvervariables[1] != "pheno_atselection" && solvervariables[1] != "pheno_afterselection" && solvervariables[1] != "pheno_parents" &&               solvervariables[1] != "random_atselection" && solvervariables[1] != "random_afterselection" && solvervariables[1] != "random_parents" &&               solvervariables[1] != "ebv_atselection" && solvervariables[1] != "ebv_afterselection" && solvervariables[1] != "ebv_parents" &&               solvervariables[1] != "litterrandom_atselection" && solvervariables[1] != "litterrandom_afterselection")
+            {
+                cout << endl << "PHENOTYPE_STRATEGY1 (" << solvervariables[1] << ") isn't an option! Check parameter file!" << endl;
+                exit (EXIT_FAILURE);
+            }
+            if(solvervariables[3] != "pheno_atselection" && solvervariables[3] != "pheno_afterselection" && solvervariables[3] != "pheno_parents" &&               solvervariables[3] != "random_atselection" && solvervariables[3] != "random_afterselection" && solvervariables[3] != "random_parents" &&               solvervariables[3] != "ebv_atselection" && solvervariables[3] != "ebv_afterselection" && solvervariables[3] != "ebv_parents" &&               solvervariables[3] != "litterrandom_atselection" && solvervariables[3] != "litterrandom_afterselection")
+            {
+                cout << endl << "PHENOTYPE_STRATEGY1 (" << solvervariables[3] << ") isn't an option! Check parameter file!" << endl;
+                exit (EXIT_FAILURE);
+            }
+            if(solvervariables.size()==5 && (solvervariables[3]!="ebv_atselection" && solvervariables[3]!="ebv_afterselection" && solvervariables[3]!="ebv_parents" && solvervariables[1]!="ebv_atselection" && solvervariables[1]!="ebv_afterselection" && solvervariables[1]!="ebv_parents"))
+            {
+                cout << endl << "PHENOTYPE_STRATEGY1 (" << solvervariables[4] << ") is only needed if doing ebv* based phenotype strategy" << endl;
+                exit (EXIT_FAILURE);
+            }
+            if(solvervariables.size()==4)
+            {
+                logfilestring = logfilestring+"        - Phenotyping strategy parameter for Trait 1\n";
+                logfilestring = logfilestring+"             - Proportion of males phenotyped:\t\t\t\t\t\t\t'"+solvervariables[0]+"'\n";
+                logfilestring = logfilestring+"             - Male phenotyping strategy:\t\t\t\t\t\t\t\t'"+solvervariables[1]+"'\n";
+                logfilestring = logfilestring+"             - Proportion of females phenotyped:\t\t\t\t\t\t\t'"+solvervariables[2]+"'\n";
+                logfilestring = logfilestring+"             - Female phenotyping strategy:\t\t\t\t\t\t\t\t'" + solvervariables[3] + "'\n";
+                if(solvervariables[3]=="ebv_atselection" || solvervariables[3]=="ebv_afterselection" || solvervariables[3]=="ebv_parents" || solvervariables[1] =="ebv_atselection" || solvervariables[1] =="ebv_afterselection" || solvervariables[1]=="ebv_parents")
+                {
+                    logfilestring = logfilestring+"             - Portion of ebv distribution animals are phenotyped from: \t\t\t\t'";
+                    logfilestring = logfilestring+SimParameters.getSelectionDir()+"' (Default)\n";
+                }
+                SimParameters.add_MalePropPhenotype_vec(atof(solvervariables[0].c_str()));
+                SimParameters.add_MaleWhoPhenotype_vec(solvervariables[1]);
+                SimParameters.add_FemalePropPhenotype_vec(atof(solvervariables[2].c_str()));
+                SimParameters.add_FemaleWhoPhenotype_vec(solvervariables[3]);
+                SimParameters.add_PortionofDistribution_vec(SimParameters.getSelectionDir()); break;
+            }
+            if(solvervariables.size()==5)
+            {
+                logfilestring = logfilestring+"        - Phenotyping strategy parameter for Trait 1\n";
+                logfilestring = logfilestring+"             - Proportion of males phenotyped:\t\t\t\t\t\t\t'"+solvervariables[0]+"'\n";
+                logfilestring = logfilestring+"             - Male phenotyping strategy:\t\t\t\t\t\t\t\t'"+solvervariables[1]+"'\n";
+                logfilestring = logfilestring+"             - Proportion of females phenotyped:\t\t\t\t\t\t\t'"+solvervariables[2]+"'\n";
+                logfilestring = logfilestring+"             - Female phenotyping strategy:\t\t\t\t\t\t\t\t'" + solvervariables[3] + "'\n";
+                logfilestring = logfilestring+"             - Portion of ebv distribution animals are phenotyped from: \t\t\t\t'"+solvervariables[4]+"'\n";
+                SimParameters.add_MalePropPhenotype_vec(atof(solvervariables[0].c_str()));
+                SimParameters.add_MaleWhoPhenotype_vec(solvervariables[1]);
+                SimParameters.add_FemalePropPhenotype_vec(atof(solvervariables[2].c_str()));
+                SimParameters.add_FemaleWhoPhenotype_vec(solvervariables[3]);
+                SimParameters.add_PortionofDistribution_vec(solvervariables[4]); break;
+            }
+        }
+        search++;
+        if(search >= parm.size())
+        {
+            if(SimParameters.getSelection() == "index_ebv" || SimParameters.getSelection() == "index_tbv")
+            {
+                SimParameters.add_MalePropPhenotype_vec(1.0);
+                SimParameters.add_MaleWhoPhenotype_vec("pheno_atselection");
+                SimParameters.add_FemalePropPhenotype_vec(1.0);
+                SimParameters.add_FemaleWhoPhenotype_vec("pheno_atselection");
+                SimParameters.add_PortionofDistribution_vec(SimParameters.getSelectionDir());
+                logfilestring = logfilestring+"        - Phenotyping strategy parameter for Trait 1\n";
+                logfilestring = logfilestring+"             - Proportion of males phenotyped:\t\t\t\t\t\t\t'1.0' (Default)\n";
+                logfilestring = logfilestring+"             - Male phenotyping strategy:\t\t\t\t\t\t\t\t'pheno_atselection' (Default)\n";
+                logfilestring = logfilestring+"             - Proportion of females phenotyped:\t\t\t\t\t\t\t'1.0' (Default)\n";
+                logfilestring = logfilestring+"             - Female phenotyping strategy:\t\t\t\t\t\t\t\t'pheno_atselection' (Default)\n"; break;
+            } else {break;}
+        }
+    }
+    search = 0;
+    while(1)
+    {
+        size_t fnd = parm[search].find("PHENOTYPE_STRATEGY2:");
+        if(fnd!=std::string::npos)
+        {
+            if(SimParameters.getSelection() != "index_ebv")
+            {
+                cout << endl << "Need to do 'index_ebv' selection for this option. Change parameter file accordingly!" << endl; exit (EXIT_FAILURE);
+            }
+            size_t pos = parm[search].find(":", 0); parm[search].erase(0, pos + 1);
+            vector < string > solvervariables(12,"");
+            for(int i = 0; i < 12; i++)
+            {
+                pos = parm[search].find(" ",0);
+                solvervariables[i] = parm[search].substr(0,pos);
+                solvervariables[i].erase(remove(solvervariables[i].begin(), solvervariables[i].end(), ' '),solvervariables[i].end());
+                if(pos != std::string::npos){parm[search].erase(0, pos + 1);}
+                if(pos == std::string::npos){parm[search].clear();}
+            }
+            int start = 0;
+            while(start < solvervariables.size())
+            {
+                if(solvervariables[start] == ""){solvervariables.erase(solvervariables.begin()+start);}
+                if(solvervariables[start] != ""){start++;}
+            }
+            //for(int i = 0; i < solvervariables.size(); i++){cout << solvervariables[i] << endl;}
+            if(solvervariables.size() != 4 && solvervariables.size() != 5)
+            {
+                cout<<endl<<"'PHENOTYPE_STRATEGY2:' wrong number of parameters. Look at manual."<<endl; exit(EXIT_FAILURE);
+            }
+            if(atof(solvervariables[0].c_str()) < 0.0 || atof(solvervariables[0].c_str()) > 1.0)
+            {
+                cout << endl << "PHENOTYPE_STRATEGY2 (" << solvervariables[0] << ") isn't possible! Check parameter file!" << endl;
+                exit (EXIT_FAILURE);
+            }
+            if(atof(solvervariables[2].c_str()) < 0.0 || atof(solvervariables[2].c_str()) > 1.0)
+            {
+                cout << endl << "PHENOTYPE_STRATEGY2 (" << solvervariables[2] << ") isn't possible! Check parameter file!" << endl;
+                exit (EXIT_FAILURE);
+            }
+            if(solvervariables[1] != "pheno_atselection" && solvervariables[1] != "pheno_afterselection" && solvervariables[1] != "pheno_parents" &&               solvervariables[1] != "random_atselection" && solvervariables[1] != "random_afterselection" && solvervariables[1] != "random_parents" &&               solvervariables[1] != "ebv_atselection" && solvervariables[1] != "ebv_afterselection" && solvervariables[1] != "ebv_parents" &&               solvervariables[1] != "litterrandom_atselection" && solvervariables[1] != "litterrandom_afterselection")
+            {
+                cout << endl << "PHENOTYPE_STRATEGY2 (" << solvervariables[1] << ") isn't an option! Check parameter file!" << endl;
+                exit (EXIT_FAILURE);
+            }
+            if(solvervariables[3] != "pheno_atselection" && solvervariables[3] != "pheno_afterselection" && solvervariables[3] != "pheno_parents" &&               solvervariables[3] != "random_atselection" && solvervariables[3] != "random_afterselection" && solvervariables[3] != "random_parents" &&               solvervariables[3] != "ebv_atselection" && solvervariables[3] != "ebv_afterselection" && solvervariables[3] != "ebv_parents" &&               solvervariables[3] != "litterrandom_atselection" && solvervariables[3] != "litterrandom_afterselection")
+            {
+                cout << endl << "PHENOTYPE_STRATEGY2 (" << solvervariables[3] << ") isn't an option! Check parameter file!" << endl;
+                exit (EXIT_FAILURE);
+            }
+            if(solvervariables.size()==5 && (solvervariables[3]!="ebv_atselection" && solvervariables[3]!="ebv_afterselection" && solvervariables[3]!="ebv_parents" && solvervariables[1]!="ebv_atselection" && solvervariables[1]!="ebv_afterselection" && solvervariables[1]!="ebv_parents"))
+            {
+                cout << endl << "PHENOTYPE_STRATEGY2 (" << solvervariables[4] << ") is only needed if doing ebv* based phenotype strategy" << endl;
+                exit (EXIT_FAILURE);
+            }
+            if(solvervariables.size()==4)
+            {
+                logfilestring = logfilestring+"        - Phenotyping strategy parameter for Trait 2\n";
+                logfilestring = logfilestring+"             - Proportion of males phenotyped:\t\t\t\t\t\t\t'"+solvervariables[0]+"'\n";
+                logfilestring = logfilestring+"             - Male phenotyping strategy:\t\t\t\t\t\t\t\t'"+solvervariables[1]+"'\n";
+                logfilestring = logfilestring+"             - Proportion of females phenotyped:\t\t\t\t\t\t\t'"+solvervariables[2]+"'\n";
+                logfilestring = logfilestring+"             - Female phenotyping strategy:\t\t\t\t\t\t\t\t'" + solvervariables[3] + "'\n";
+                if(solvervariables[3]=="ebv_atselection" || solvervariables[3]=="ebv_afterselection" || solvervariables[3]=="ebv_parents" || solvervariables[1] =="ebv_atselection" || solvervariables[1] =="ebv_afterselection" || solvervariables[1]=="ebv_parents")
+                {
+                    logfilestring = logfilestring+"             - Portion of ebv distribution animals are phenotyped from: \t\t\t\t'";
+                    logfilestring = logfilestring+SimParameters.getSelectionDir()+"' (Default)\n";
+                }
+                SimParameters.add_MalePropPhenotype_vec(atof(solvervariables[0].c_str()));
+                SimParameters.add_MaleWhoPhenotype_vec(solvervariables[1]);
+                SimParameters.add_FemalePropPhenotype_vec(atof(solvervariables[2].c_str()));
+                SimParameters.add_FemaleWhoPhenotype_vec(solvervariables[3]);
+                SimParameters.add_PortionofDistribution_vec(SimParameters.getSelectionDir()); break;
+            }
+            if(solvervariables.size()==5)
+            {
+                logfilestring = logfilestring+"        - Phenotyping strategy parameter for Trait 2\n";
+                logfilestring = logfilestring+"             - Proportion of males phenotyped:\t\t\t\t\t\t\t'"+solvervariables[0]+"'\n";
+                logfilestring = logfilestring+"             - Male phenotyping strategy:\t\t\t\t\t\t\t\t'"+solvervariables[1]+"'\n";
+                logfilestring = logfilestring+"             - Proportion of females phenotyped:\t\t\t\t\t\t\t'"+solvervariables[2]+"'\n";
+                logfilestring = logfilestring+"             - Female phenotyping strategy:\t\t\t\t\t\t\t\t'" + solvervariables[3] + "'\n";
+                logfilestring = logfilestring+"             - Portion of ebv distribution animals are phenotyped from: \t\t\t\t'"+solvervariables[4]+"'\n";
+                SimParameters.add_MalePropPhenotype_vec(atof(solvervariables[0].c_str()));
+                SimParameters.add_MaleWhoPhenotype_vec(solvervariables[1]);
+                SimParameters.add_FemalePropPhenotype_vec(atof(solvervariables[2].c_str()));
+                SimParameters.add_FemaleWhoPhenotype_vec(solvervariables[3]);
+                SimParameters.add_PortionofDistribution_vec(solvervariables[4]); break;
+            }
+        }
+        search++;
+        if(search >= parm.size())
+        {
+            if(SimParameters.getSelection() == "index_ebv" || SimParameters.getSelection() == "index_tbv")
+            {
+                SimParameters.add_MalePropPhenotype_vec(1.0);
+                SimParameters.add_MaleWhoPhenotype_vec("pheno_atselection");
+                SimParameters.add_FemalePropPhenotype_vec(1.0);
+                SimParameters.add_FemaleWhoPhenotype_vec("pheno_atselection");
+                SimParameters.add_PortionofDistribution_vec(SimParameters.getSelectionDir());
+                logfilestring = logfilestring+"         - Phenotyping strategy parameter for Trait 2\n";
+                logfilestring = logfilestring+"             - Proportion of males phenotyped:\t\t\t\t\t\t\t'1.0' (Default)\n";
+                logfilestring = logfilestring+"             - Male phenotyping strategy:\t\t\t\t\t\t\t\t'pheno_atselection' (Default)\n";
+                logfilestring = logfilestring+"             - Proportion of females phenotyped:\t\t\t\t\t\t\t'1.0' (Default)\n";
+                logfilestring = logfilestring+"             - Female phenotyping strategy:\t\t\t\t\t\t\t\t'pheno_atselection' (Default)\n"; break;
+            } else {break;}
+        }
+    }
+    /* Loop through number of traits to make sure phenotype strategy makes sense */
+    for(int trait = 0; trait < (SimParameters.get_MalePropPhenotype_vec()).size(); trait++)
+    {
+        if(SimParameters.get_PortionofDistribution_vec()[trait] != "high" && SimParameters.get_PortionofDistribution_vec()[trait] != "low" && SimParameters.get_PortionofDistribution_vec()[trait] != "tails")
+        {
+            cout <<endl<<"Parameter for deciding which portion of ebv distribution to decide whether an animals is phenotyped is not an option (Trait" << trait << "). Look at Manual!!"<<endl; exit (EXIT_FAILURE);
+        }
+        if((SimParameters.get_MalePropPhenotype_vec())[trait] == 0.0 && (SimParameters.get_FemalePropPhenotype_vec())[trait] == 0.0)
+        {
+            cout <<endl<<"No Phenotypes are being generated (Trait" << trait << ") Look at Manual!!"<<endl; exit (EXIT_FAILURE);
+        }
+        /******************************************************************/
+        /*****        Doing pheno_* based phenotype strategy         ******/
+        /******************************************************************/
+        /* if do pheno_atselection strategy has to be a value of 0.0 or 1.0 for a given sex and can't have 0.0 across both sexes */
+        if((SimParameters.get_MaleWhoPhenotype_vec())[trait] == "pheno_atselection" && (SimParameters.get_MalePropPhenotype_vec())[trait] > 0.0 && (SimParameters.get_MalePropPhenotype_vec())[trait] < 1.0)
+        {
+            cout <<endl<<"When doing 'pheno_atselection' proportion has to be 0.0 or 1.0 (Trait" << trait << "). Look at Manual!!"<<endl; exit (EXIT_FAILURE);
+        }
+        if((SimParameters.get_FemaleWhoPhenotype_vec())[trait] == "pheno_atselection" && (SimParameters.get_FemalePropPhenotype_vec())[trait] > 0.0 && (SimParameters.get_FemalePropPhenotype_vec())[trait] < 1.0)
+        {
+            cout <<endl<<"When doing 'pheno_atselection' proportion has to be 0.0 or 1.0 (Trait" << trait << "). Look at Manual!!"<<endl; exit (EXIT_FAILURE);
+        }
+        /* if do pheno_afterselection strategy has to be a value of 0.0 or 1.0 for a given sex and can't have 0.0 across both sexes */
+        if((SimParameters.get_MaleWhoPhenotype_vec())[trait] == "pheno_afterselection" && (SimParameters.get_MalePropPhenotype_vec())[trait] > 0.0 && (SimParameters.get_MalePropPhenotype_vec())[trait] < 1.0)
+        {
+            cout <<endl<<"When doing 'pheno_afterselection' proportion has to be 0.0 or 1.0 (Trait" << trait << "). Look at Manual!!"<<endl; exit (EXIT_FAILURE);
+        }
+        if((SimParameters.get_FemaleWhoPhenotype_vec())[trait] == "pheno_afterselection" && (SimParameters.get_FemalePropPhenotype_vec())[trait] > 0.0 && (SimParameters.get_FemalePropPhenotype_vec())[trait] < 1.0)
+        {
+            cout <<endl<<"When doing 'pheno_afterselection' proportion has to be 0.0 or 1.0 (Trait" << trait << "). Look at Manual!!"<<endl; exit (EXIT_FAILURE);
+        }
+        if((SimParameters.get_MaleWhoPhenotype_vec())[trait] == "pheno_afterselection" && SimParameters.getGenfoundsel() == 0)
+        {
+            cout <<endl<<"Need to start off with at least 1 generation of random selection if progeny doesn't have phenotype (Trait" << trait << ")!"<<endl; exit (EXIT_FAILURE);
+        }
+        if((SimParameters.get_FemaleWhoPhenotype_vec())[trait] == "pheno_afterselection" && SimParameters.getGenfoundsel() == 0)
+        {
+            cout <<endl<<"Need to start off with at least 1 generation of random selection if progeny doesn't have phenotype (Trait" << trait << ")!"<<endl; exit (EXIT_FAILURE);
+        }
+        /* if do pheno_parents strategy has to be a value of 0.0 or 1.0 for a given sex and can't have 0.0 across both sexes */
+        if((SimParameters.get_MaleWhoPhenotype_vec())[trait] == "pheno_parents" && (SimParameters.get_MalePropPhenotype_vec())[trait] > 0.0 && (SimParameters.get_MalePropPhenotype_vec())[trait] < 1.0)
+        {
+            cout <<endl<<"When doing 'pheno_parents' proportion has to be 0.0 or 1.0 (Trait" << trait << "). Look at Manual!!"<<endl; exit (EXIT_FAILURE);
+        }
+        if((SimParameters.get_FemaleWhoPhenotype_vec())[trait] == "pheno_parents" && (SimParameters.get_FemalePropPhenotype_vec())[trait] > 0.0 && (SimParameters.get_FemalePropPhenotype_vec())[trait] < 1.0)
+        {
+            cout <<endl<<"When doing 'pheno_parents' proportion has to be 0.0 or 1.0 (Trait" << trait << "). Look at Manual!!"<<endl; exit (EXIT_FAILURE);
+        }
+        if((SimParameters.get_MaleWhoPhenotype_vec())[trait] == "pheno_parents" && SimParameters.getGenfoundsel() == 0)
+        {
+            cout <<endl<<"Need to start off with at least 1 generation of random selection if progeny doesn't have phenotype (Trait"<<trait<<")!"<<endl;
+            exit (EXIT_FAILURE);
+        }
+        if((SimParameters.get_FemaleWhoPhenotype_vec())[trait] == "pheno_parents" && SimParameters.getGenfoundsel() == 0)
+        {
+            cout <<endl<<"Need to start off with at least 1 generation of random selection if progeny doesn't have phenotype (Trait"<<trait<<")!"<<endl;
+            exit (EXIT_FAILURE);
+        }
+        /******************************************************************/
+        /*****        Doing random_* based phenotype strategy        ******/
+        /******************************************************************/
+        /* if do random_atselection strategy has to be a value greater 0.0 and less than 1.0 for a given sex */
+        if((SimParameters.get_MaleWhoPhenotype_vec())[trait] == "random_atselection" && (SimParameters.get_MalePropPhenotype_vec())[trait] <= 0.0)
+        {
+            cout <<endl<<"When doing 'random_atselection' proportion has to be > 0.0 and < 1.0 (Trait"<<trait<<"). Look at Manual!!"<<endl;
+            
+            exit (EXIT_FAILURE);
+        }
+        if((SimParameters.get_MaleWhoPhenotype_vec())[trait] == "random_atselection" && (SimParameters.get_MalePropPhenotype_vec())[trait] >= 1.0)
+        {
+            cout <<endl<<"When doing 'random_atselection' proportion has to be > 0.0 and < 1.0 (Trait"<<trait<<"). Look at Manual!!"<<endl;
+            exit (EXIT_FAILURE);
+        }
+        if((SimParameters.get_FemaleWhoPhenotype_vec())[trait] == "random_atselection" && (SimParameters.get_FemalePropPhenotype_vec())[trait] <= 0.0)
+        {
+            cout <<endl<<"When doing 'random_atselection' proportion has to be > 0.0 and < 1.0 (Trait"<<trait<<"). Look at Manual!!"<<endl;
+            exit (EXIT_FAILURE);
+        }
+        if((SimParameters.get_FemaleWhoPhenotype_vec())[trait] == "random_atselection" && (SimParameters.get_FemalePropPhenotype_vec())[trait] >= 1.0)
+        {
+            cout <<endl<<"When doing 'random_atselection' proportion has to be > 0.0 and < 1.0 (Trait"<<trait<<"). Look at Manual!!"<<endl;
+            exit (EXIT_FAILURE);
+        }
+        /* if do random_afterselection strategy has to be a value greater 0.0 and less than 1.0 for a given sex */
+        if((SimParameters.get_MaleWhoPhenotype_vec())[trait] == "random_afterselection" && (SimParameters.get_MalePropPhenotype_vec())[trait] <= 0.0)
+        {
+            cout <<endl<<"When doing 'random_afterselection' proportion has to be > 0.0 and < 1.0 (Trait"<<trait<<"). Look at Manual!!"<<endl;
+            exit (EXIT_FAILURE);
+        }
+        if((SimParameters.get_MaleWhoPhenotype_vec())[trait] == "random_afterselection" && (SimParameters.get_MalePropPhenotype_vec())[trait] >= 1.0)
+        {
+            cout <<endl<<"When doing 'random_afterselection' proportion has to be > 0.0 and < 1.0 (Trait"<<trait<<"). Look at Manual!!"<<endl;
+            exit (EXIT_FAILURE);
+        }
+        if((SimParameters.get_FemaleWhoPhenotype_vec())[trait] == "random_afterselection" && (SimParameters.get_FemalePropPhenotype_vec())[trait] <= 0.0)
+        {
+            cout <<endl<<"When doing 'random_afterselection' proportion has to be > 0.0 and < 1.0 (Trait"<<trait<<"). Look at Manual!!"<<endl;
+            exit (EXIT_FAILURE);
+        }
+        if((SimParameters.get_FemaleWhoPhenotype_vec())[trait] == "random_afterselection" && (SimParameters.get_FemalePropPhenotype_vec())[trait] >= 1.0)
+        {
+            cout <<endl<<"When doing 'random_afterselection' proportion has to be > 0.0 and < 1.0 (Trait"<<trait<<"). Look at Manual!!"<<endl;
+            exit (EXIT_FAILURE);
+        }
+        if((SimParameters.get_MaleWhoPhenotype_vec())[trait] == "random_afterselection" && SimParameters.getGenfoundsel() == 0)
+        {
+            cout <<endl<<"Need to start off with at least 1 generation of random selection if progeny doesn't have phenotype (Trait"<<trait<<")!"<<endl;
+            exit (EXIT_FAILURE);
+        }
+        if((SimParameters.get_FemaleWhoPhenotype_vec())[trait] == "random_afterselection" && SimParameters.getGenfoundsel() == 0)
+        {
+            cout <<endl<<"Need to start off with at least 1 generation of random selection if progeny doesn't have phenotype (Trait"<<trait<<")!"<<endl;
+            exit (EXIT_FAILURE);
+        }
+        /* if do random_parents strategy has to be a value greater 0.0 and less than 1.0 for a given sex */
+        if((SimParameters.get_MaleWhoPhenotype_vec())[trait] == "random_parents" && (SimParameters.get_MalePropPhenotype_vec())[trait] <= 0.0)
+        {
+            cout <<endl<<"When doing 'random_afterselection' proportion has to be > 0.0 and < 1.0  (Trait"<<trait<<"). Look at Manual!!"<<endl;
+            exit (EXIT_FAILURE);
+        }
+        if((SimParameters.get_MaleWhoPhenotype_vec())[trait] == "random_parents" && (SimParameters.get_MalePropPhenotype_vec())[trait] >= 1.0)
+        {
+            cout <<endl<<"When doing 'random_afterselection' proportion has to be > 0.0 and < 1.0  (Trait"<<trait<<"). Look at Manual!!"<<endl;
+            exit (EXIT_FAILURE);
+        }
+        if((SimParameters.get_FemaleWhoPhenotype_vec())[trait] == "random_parents" && (SimParameters.get_FemalePropPhenotype_vec())[trait] <= 0.0)
+        {
+            cout <<endl<<"When doing 'random_afterselection' proportion has to be > 0.0 and < 1.0 (Trait"<<trait<<"). Look at Manual!!"<<endl;
+            exit (EXIT_FAILURE);
+        }
+        if((SimParameters.get_FemaleWhoPhenotype_vec())[trait] == "random_parents" && (SimParameters.get_FemalePropPhenotype_vec())[trait] >= 1.0)
+        {
+            cout <<endl<<"When doing 'random_afterselection' proportion has to be > 0.0 and < 1.0  (Trait"<<trait<<"). Look at Manual!!"<<endl;
+            exit (EXIT_FAILURE);
+        }
+        if((SimParameters.get_MaleWhoPhenotype_vec())[trait] == "random_parents" && SimParameters.getGenfoundsel() == 0)
+        {
+            cout <<endl<<"Need to start off with at least 1 generation of random selection if progeny doesn't have phenotype (Trait"<<trait<<")!"<<endl;
+            exit (EXIT_FAILURE);
+        }
+        if((SimParameters.get_FemaleWhoPhenotype_vec())[trait] == "random_parents" && SimParameters.getGenfoundsel() == 0)
+        {
+            cout <<endl<<"Need to start off with at least 1 generation of random selection if progeny doesn't have phenotype (Trait"<<trait<<")!"<<endl;
+            exit (EXIT_FAILURE);
+        }
+        /******************************************************************/
+        /*****        Doing ebv_* based phenotype strategy         ******/
+        /******************************************************************/
+        /* if do ebv_atselection strategy has to be a value greater 0.0 and less than 1.0 for a given sex */
+        if((SimParameters.get_MaleWhoPhenotype_vec())[trait] == "ebv_atselection" && (SimParameters.get_MalePropPhenotype_vec())[trait] <= 0.0)
+        {
+            cout <<endl<<"When doing 'ebv_atselection' proportion has to be > 0.0 and < 1.0 (Trait"<<trait<<"). Look at Manual!!"<<endl; exit (EXIT_FAILURE);
+        }
+        if((SimParameters.get_MaleWhoPhenotype_vec())[trait] == "ebv_atselection" && (SimParameters.get_MalePropPhenotype_vec())[trait] >= 1.0)
+        {
+            cout <<endl<<"When doing 'ebv_atselection' proportion has to be > 0.0 and < 1.0 (Trait"<<trait<<"). Look at Manual!!"<<endl; exit (EXIT_FAILURE);
+        }
+        if((SimParameters.get_FemaleWhoPhenotype_vec())[trait] == "ebv_atselection" && (SimParameters.get_FemalePropPhenotype_vec())[trait] <= 0.0)
+        {
+            cout <<endl<<"When doing 'ebv_atselection' proportion has to be > 0.0 and < 1.0 (Trait"<<trait<<"). Look at Manual!!"<<endl; exit (EXIT_FAILURE);
+        }
+        if((SimParameters.get_FemaleWhoPhenotype_vec())[trait] == "ebv_atselection" && (SimParameters.get_FemalePropPhenotype_vec())[trait] >= 1.0)
+        {
+            cout <<endl<<"When doing 'ebv_atselection' proportion has to be > 0.0 and < 1.0 (Trait"<<trait<<"). Look at Manual!!"<<endl; exit (EXIT_FAILURE);
+        }
+        /* if do ebv_afterselection strategy has to be a value greater 0.0 and less than 1.0 for a given sex */
+        if((SimParameters.get_MaleWhoPhenotype_vec())[trait] == "ebv_afterselection" && (SimParameters.get_MalePropPhenotype_vec())[trait] <= 0.0)
+        {
+            cout <<endl<<"When doing 'ebv_afterselection' proportion has to be > 0.0 and < 1.0 (Trait"<<trait<<"). Look at Manual!!"<<endl;
+            exit (EXIT_FAILURE);
+        }
+        if((SimParameters.get_MaleWhoPhenotype_vec())[trait] == "ebv_afterselection" && (SimParameters.get_MalePropPhenotype_vec())[trait] >= 1.0)
+        {
+            cout <<endl<<"When doing 'ebv_afterselection' proportion has to be > 0.0 and < 1.0 (Trait"<<trait<<"). Look at Manual!!"<<endl;
+            exit (EXIT_FAILURE);
+        }
+        if((SimParameters.get_FemaleWhoPhenotype_vec())[trait] == "ebv_afterselection" && (SimParameters.get_FemalePropPhenotype_vec())[trait] <= 0.0)
+        {
+            cout <<endl<<"When doing 'ebv_afterselection' proportion has to be > 0.0 and < 1.0 (Trait"<<trait<<"). Look at Manual!!"<<endl;
+            exit (EXIT_FAILURE);
+        }
+        if((SimParameters.get_FemaleWhoPhenotype_vec())[trait] == "ebv_afterselection" && (SimParameters.get_FemalePropPhenotype_vec())[trait] >= 1.0)
+        {
+            cout <<endl<<"When doing 'ebv_afterselection' proportion has to be > 0.0 and < 1.0 (Trait"<<trait<<"). Look at Manual!!"<<endl;
+            exit (EXIT_FAILURE);
+        }
+        if((SimParameters.get_MaleWhoPhenotype_vec())[trait] == "ebv_afterselection" && SimParameters.getGenfoundsel() == 0)
+        {
+            cout <<endl<<"Need to start off with at least 1 generation of random selection if progeny doesn't have phenotype (Trait"<<trait<<")!"<<endl;
+            exit (EXIT_FAILURE);
+        }
+        if((SimParameters.get_FemaleWhoPhenotype_vec())[trait] == "ebv_afterselection" && SimParameters.getGenfoundsel() == 0)
+        {
+            cout <<endl<<"Need to start off with at least 1 generation of random selection if progeny doesn't have phenotype (Trait"<<trait<<")!"<<endl;
+            exit (EXIT_FAILURE);
+        }
+        /* if do ebv_parents strategy has to be a value greater 0.0 and less than 1.0 for a given sex */
+        if((SimParameters.get_MaleWhoPhenotype_vec())[trait] == "ebv_parents" && (SimParameters.get_MalePropPhenotype_vec())[trait] <= 0.0)
+        {
+            cout <<endl<<"When doing 'ebv_afterselection' proportion has to be > 0.0 and < 1.0 (Trait"<<trait<<"). Look at Manual!!"<<endl;
+            exit (EXIT_FAILURE);
+        }
+        if((SimParameters.get_MaleWhoPhenotype_vec())[trait] == "ebv_parents" && (SimParameters.get_MalePropPhenotype_vec())[trait] >= 1.0)
+        {
+            cout <<endl<<"When doing 'ebv_afterselection' proportion has to be > 0.0 and < 1.0 (Trait"<<trait<<"). Look at Manual!!"<<endl;
+            exit (EXIT_FAILURE);
+        }
+        if((SimParameters.get_FemaleWhoPhenotype_vec())[trait] == "ebv_parents" && (SimParameters.get_FemalePropPhenotype_vec())[trait] <= 0.0)
+        {
+            cout <<endl<<"When doing 'ebv_afterselection' proportion has to be > 0.0 and < 1.0 (Trait"<<trait<<"). Look at Manual!!"<<endl;
+            exit (EXIT_FAILURE);
+        }
+        if((SimParameters.get_FemaleWhoPhenotype_vec())[trait] == "ebv_parents" && (SimParameters.get_FemalePropPhenotype_vec())[trait] >= 1.0)
+        {
+            cout <<endl<<"When doing 'ebv_afterselection' proportion has to be > 0.0 and < 1.0 (Trait"<<trait<<"). Look at Manual!!"<<endl;
+            exit (EXIT_FAILURE);
+        }
+        if((SimParameters.get_MaleWhoPhenotype_vec())[trait] == "ebv_parents" && SimParameters.getGenfoundsel() == 0)
+        {
+            cout <<endl<<"Need to start off with at least 1 generation of random selection if progeny doesn't have phenotype (Trait"<<trait<<")!"<<endl;
+            exit (EXIT_FAILURE);
+        }
+        if((SimParameters.get_FemaleWhoPhenotype_vec())[trait] == "ebv_parents" && SimParameters.getGenfoundsel() == 0)
+        {
+            cout <<endl<<"Need to start off with at least 1 generation of random selection if progeny doesn't have phenotype (Trait"<<trait<<")!"<<endl;
+            exit (EXIT_FAILURE);
+        }
+        /******************************************************************/
+        /*****     Doing litterrandom_* based phenotype strategy     ******/
+        /******************************************************************/
+        if(SimParameters.getOffspring() == 1 && ((SimParameters.get_MaleWhoPhenotype_vec())[trait] == "litterrandom_atselection" || (SimParameters.get_MaleWhoPhenotype_vec())[trait] == "litterrandom_afterselection" || (SimParameters.get_FemaleWhoPhenotype_vec())[trait] == "litterrandom_atselection" || (SimParameters.get_FemaleWhoPhenotype_vec())[trait] == "litterrandom_afterselection"))
+        {
+            cout<<"\n This phenotyping option is only available for litter based populations ,therefore need to use 'litter' based option (Trait"<<trait<<").\n";
+            exit (EXIT_FAILURE);
+        }
+        /* if do litterrandom_atselection strategy has to be a value greater 0.0 and less than 1.0 for a given sex */
+        if((SimParameters.get_MaleWhoPhenotype_vec())[trait] == "litterrandom_atselection" && (SimParameters.get_MalePropPhenotype_vec())[trait] <= 0.0)
+        {
+            cout<<endl<<"When doing 'litterrandom_atselection' proportion has to be > 0.0 and < 1.0 (Trait"<<trait<<"). Look at Manual!!"<<endl;
+            exit (EXIT_FAILURE);
+        }
+        if((SimParameters.get_MaleWhoPhenotype_vec())[trait] == "litterrandom_atselection" && (SimParameters.get_MalePropPhenotype_vec())[trait] >= 1.0)
+        {
+            cout <<endl<<"When doing 'litterrandom_atselection' proportion has to be > 0.0 and < 1.0 (Trait"<<trait<<"). Look at Manual!!"<<endl;
+            exit (EXIT_FAILURE);
+        }
+        if((SimParameters.get_FemaleWhoPhenotype_vec())[trait] == "litterrandom_atselection" && (SimParameters.get_FemalePropPhenotype_vec())[trait] <= 0.0)
+        {
+            cout <<endl<<"When doing 'litterrandom_atselection' proportion has to be > 0.0 and < 1.0 (Trait"<<trait<<"). Look at Manual!!"<<endl;
+            exit (EXIT_FAILURE);
+        }
+        if((SimParameters.get_FemaleWhoPhenotype_vec())[trait] == "litterrandom_atselection" && (SimParameters.get_FemalePropPhenotype_vec())[trait] >= 1.0)
+        {
+            cout <<endl<<"When doing 'litterrandom_atselection' proportion has to be > 0.0 and < 1.0 (Trait"<<trait<<"). Look at Manual!!"<<endl;
+            exit (EXIT_FAILURE);
+        }
+        /* if do ebv_afterselection strategy has to be a value greater 0.0 and less than 1.0 for a given sex */
+        if((SimParameters.get_MaleWhoPhenotype_vec())[trait] == "litterrandom_afterselection" && (SimParameters.get_MalePropPhenotype_vec())[trait] <= 0.0)
+        {
+            cout <<endl<<"When doing 'litterrandom_afterselection' proportion has to be > 0.0 and < 1.0 (Trait"<<trait<<"). Look at Manual!!"<<endl;
+            exit (EXIT_FAILURE);
+        }
+        if((SimParameters.get_MaleWhoPhenotype_vec())[trait] == "litterrandom_afterselection" && (SimParameters.get_MalePropPhenotype_vec())[trait] >= 1.0)
+        {
+            cout <<endl<<"When doing 'litterrandom_afterselection' proportion has to be > 0.0 and < 1.0 (Trait"<<trait<<"). Look at Manual!!"<<endl;
+            exit (EXIT_FAILURE);
+        }
+        if((SimParameters.get_FemaleWhoPhenotype_vec())[trait] == "litterrandom_afterselection" && (SimParameters.get_FemalePropPhenotype_vec())[trait] <= 0.0)
+        {
+            cout <<endl<<"When doing 'litterrandom_afterselection' proportion has to be > 0.0 and < 1.0 (Trait"<<trait<<"). Look at Manual!!"<<endl;
+            exit (EXIT_FAILURE);
+        }
+        if((SimParameters.get_FemaleWhoPhenotype_vec())[trait] == "litterrandom_afterselection" && (SimParameters.get_FemalePropPhenotype_vec())[trait] >= 1.0)
+        {
+            cout <<endl<<"When doing 'litterrandom_afterselection' proportion has to be > 0.0 and < 1.0 (Trait"<<trait<<"). Look at Manual!!"<<endl;
+            exit (EXIT_FAILURE);
+        }
+        if((SimParameters.get_MaleWhoPhenotype_vec())[trait] == "litterrandom_afterselection" && SimParameters.getGenfoundsel() == 0)
+        {
+            cout <<endl<<"Need to start off with at least 1 generation of random selection if progeny doesn't have phenotype (Trait"<<trait<<")!"<<endl;
+            exit (EXIT_FAILURE);
+        }
+        if((SimParameters.get_FemaleWhoPhenotype_vec())[trait] == "litterrandom_afterselection" && SimParameters.getGenfoundsel() == 0)
+        {
+            cout <<endl<<"Need to start off with at least 1 generation of random selection if progeny doesn't have phenotype (Trait"<<trait<<")!"<<endl;
+            exit (EXIT_FAILURE);
+        }
     }
     search = 0;
     while(1)
@@ -1306,9 +2131,9 @@ void read_generate_parameters(parameters &SimParameters, string parameterfile, s
             logfilestring=logfilestring+"        - EBV are not estimated each generation.\n"; break;
         }
     }
-    if((SimParameters.getSelection() == "ebv" || SimParameters.getSelection() == "ocs") && SimParameters.getEBV_Calc() == "SKIP")
+    if((SimParameters.getSelection() == "ebv" || SimParameters.getSelection() == "index_ebv" || SimParameters.getSelection() == "ocs") && SimParameters.getEBV_Calc() == "SKIP")
     {
-        cout << endl << "Need to have 'EBV_METHOD:' option if selecting animals based on EBV or using ocs." << endl; exit (EXIT_FAILURE);
+        cout << endl << "Need to have 'EBV_METHOD:' option if selecting animals based on ebv, index_ebv or using ocs." << endl; exit (EXIT_FAILURE);
     }
     search = 0;
     while(1)
@@ -1464,7 +2289,7 @@ void read_generate_parameters(parameters &SimParameters, string parameterfile, s
         }
         search++; if(search >= parm.size()){cout << endl << "Couldn't find 'CULLING:' variable in parameter file!" << endl; exit (EXIT_FAILURE);}
     }
-    if(SimParameters.getCulling() != "random" && SimParameters.getCulling() != "phenotype" && SimParameters.getCulling() != "true_bv" && SimParameters.getCulling() != "ebv")
+    if(SimParameters.getCulling() != "random" && SimParameters.getCulling() != "phenotype" && SimParameters.getCulling() != "tbv" && SimParameters.getCulling() != "ebv" && SimParameters.getCulling() != "index_tbv" && SimParameters.getCulling() != "index_ebv")
     {
         cout << endl << "CULLING (" << SimParameters.getCulling()  << ") isn't an option! Check parameter file!" << endl; exit (EXIT_FAILURE);
     }
@@ -1477,13 +2302,46 @@ void read_generate_parameters(parameters &SimParameters, string parameterfile, s
     {
         cout << endl << "Selection and Culling Criteria are different!!" << endl; exit (EXIT_FAILURE);
     }
-    if(SimParameters.getSelection() == "true_bv" && SimParameters.getCulling() != "true_bv")
+    if(SimParameters.getSelection() == "tbv" && SimParameters.getCulling() != "tbv")
     {
         cout << endl << "Selection and Culling Criteria are different!!" << endl; exit (EXIT_FAILURE);
     }
     if(SimParameters.getSelection() == "ebv" && SimParameters.getCulling() != "ebv")
     {
         cout << endl << "Selection and Culling Criteria are different!!" << endl; exit (EXIT_FAILURE);
+    }
+    if(SimParameters.getSelection() == "index_tbv" && SimParameters.getCulling() != "index_tbv")
+    {
+        cout << endl << "Selection and Culling Criteria are different!!" << endl; exit (EXIT_FAILURE);
+    }
+    if(SimParameters.getSelection() == "index_ebv" && SimParameters.getCulling() != "index_ebv")
+    {
+        cout << endl << "Selection and Culling Criteria are different!!" << endl; exit (EXIT_FAILURE);
+    }
+    /**********************************************************/
+    /* To generate particular phenotype and genotype scenario */
+    /**********************************************************/
+    search = 0;
+    while(1)
+    {
+        size_t fnd = parm[search].find("INTERIM_EBV:");
+        if(fnd!=std::string::npos)
+        {
+            size_t pos = parm[search].find(": ", 0); parm[search].erase(0, pos + 1);
+            parm[search].erase(remove(parm[search].begin(), parm[search].end(), ' '), parm[search].end());
+            if(parm[search] != "no" && parm[search] != "before_culling" && parm[search] != "after_culling")
+            {
+                cout << endl << "This option (" <<parm[search] << ") for the parameter. Look at user manual!" << endl; exit (EXIT_FAILURE);
+            }
+            SimParameters.UpdateInterim_EBV(parm[search]);
+            logfilestring=logfilestring+"        - Interim EBV are Calculated:\t\t\t\t\t\t\t\t\t'"+parm[search]+"'\n"; break;
+        }
+        search++;
+        if(search >= parm.size())
+        {
+            SimParameters.UpdateInterim_EBV("no"); logfilestring=logfilestring+"        - Interim EBV are Calculated:\t\t\t\t\t\t\t\t\t'no' (Default)\n";
+            break;
+        }
     }
     ///////////////////////////////////////////////////////////////
     ///////////             Mating Parameters           ///////////
@@ -1970,7 +2828,7 @@ void read_generate_parameters(parameters &SimParameters, string parameterfile, s
     }
     if(SimParameters.getOutputTrainReference() != "yes" && SimParameters.getOutputTrainReference() != "no")
     {
-        cout << endl << "'GEN_AMAX:' parameter given is not an option!! Check Manual." << endl; exit (EXIT_FAILURE);
+        cout << endl << "'TRAINREFER_STATS:' parameter given is not an option!! Check Manual." << endl; exit (EXIT_FAILURE);
     }
     
     search = 0;
@@ -2314,13 +3172,29 @@ void read_generate_parameters(parameters &SimParameters, string parameterfile, s
     /*      Genotyping Strategy               */
     /******************************************/
     /******************************************/
+    /****************************************************************************************************************************************/
+    /****************************************************************************************************************************************/
+    /** Current Options:                                                                                                                    */
+    /** - 'parents': Only genotype selected parents.                                                                                        */
+    /** - 'offspring': Only genotype all offspring.                                                                                         */
+    /** - 'parents_offspring': Genotype all parents and offspring.                                                                          */
+    /** - 'random': randomly genotype a certain percentage of progeny across litters if more than one progeny.                              */
+    /** - 'parents_random': genotype parents and randomly genotype a certain percentage of progeny across litters if more than one progeny. */
+    /** - 'ebv_parentavg': genotype progeny based on parent average (i.e. progeny = 1/2(EBV_sire + EBV_dam). Only if progeny = 1.           */
+    /** - 'parents_ebv_parentavg': genotype parents and progeny based on parent average. Only if progeny = 1.                               */
+    /** - 'litter_random': randomly genotype progeny within each litter. Only if progeny > 1.                                               */
+    /** - 'litter_parents_random': genotype parents and randomly genotype progeny within each litter. Only if progeny > 1.                  */
+    /** - 'ebv': genotype progeny based on breeding values prior to add genotype information on progeny. (i.e. only pedigree based)         */
+    /** - 'parent_ebv': genotype progeny based on breeding values prior to add genotype information on progeny.                             */
+    /****************************************************************************************************************************************/
+    /****************************************************************************************************************************************/
     search = 0; string tempgenostrat;
     while(1)
     {
         size_t fnd = parm[search].find("GENOTYPE_STRATEGY:");
         if(fnd!=std::string::npos)
         {
-            if(SimParameters.getSelection() != "ebv" || SimParameters.getEBV_Calc() != "ssgblup")
+            if((SimParameters.getSelection() != "ebv" && SimParameters.getSelection() != "index_ebv") || SimParameters.getEBV_Calc() != "ssgblup")
             {
                 cout << endl << "Need to do 'ebv' selection with a 'ssgblup' prediction option for this option. Change parameter";
                 cout << " file accordingly!" << endl; exit (EXIT_FAILURE);
@@ -2342,13 +3216,19 @@ void read_generate_parameters(parameters &SimParameters, string parameterfile, s
                 if(solvervariables[start] != ""){start++;}
             }
             //for(int i = 0; i < solvervariables.size(); i++){cout << solvervariables[i] << endl;}
-            if(solvervariables.size() != 5)
+            if(solvervariables.size() != 5 && solvervariables.size() != 6)
             {
                 cout<<endl<<"'GENOTYPE_STRATEGY:' wrong number of parameters. Look at manual."<<endl; exit(EXIT_FAILURE);
             }
             if(atoi(solvervariables[0].c_str()) < 0 || atoi(solvervariables[0].c_str()) > SimParameters.getGener())
             {
                 cout << endl << "GENOTYPE_STRATEGY (" << solvervariables[0] << ") isn't possible! Check parameter file!" << endl;
+                exit (EXIT_FAILURE);
+            }
+            /* needs to be greater than number of random generations of founder selection + 2 in order to make G and A compatible */
+            if(atoi(solvervariables[0].c_str()) < (SimParameters.getGenfoundsel() +2))
+            {
+                cout << endl << "In order to make G and A more compatible need to add more than generations of pedigree-based selection!" << endl;
                 exit (EXIT_FAILURE);
             }
             if(atof(solvervariables[1].c_str()) < 0.0 || atof(solvervariables[1].c_str()) > 1.0)
@@ -2361,27 +3241,69 @@ void read_generate_parameters(parameters &SimParameters, string parameterfile, s
                 cout << endl << "GENOTYPE_STRATEGY (" << solvervariables[3] << ") isn't possible! Check parameter file!" << endl;
                 exit (EXIT_FAILURE);
             }
-            if(solvervariables[2] != "parents" && solvervariables[2] != "offspring" && solvervariables[2] != "parents_offspring" && solvervariables[2] != "random" && solvervariables[2] != "parents_random" && solvervariables[2] != "ebv_parentavg" && solvervariables[4] != "parents_ebv_parentavg")
+            if(solvervariables[2] != "parents" && solvervariables[2] != "offspring" && solvervariables[2] != "parents_offspring" && solvervariables[2] != "random" && solvervariables[2] != "parents_random" && solvervariables[2] != "litter_random" && solvervariables[2] != "litter_parents_random" && solvervariables[2] != "ebv" && solvervariables[2] != "parents_ebv")
             {
                 cout << endl << "GENOTYPE_STRATEGY (" << solvervariables[2] << ") isn't an option! Check parameter file!" << endl;
                 exit (EXIT_FAILURE);
             }
-            if(solvervariables[4] != "parents" && solvervariables[4] != "offspring" && solvervariables[4] != "parents_offspring" && solvervariables[2] != "random" && solvervariables[4] != "parents_random" && solvervariables[4] != "ebv_parentavg" && solvervariables[4] != "parents_ebv_parentavg")
+            if(solvervariables[4] != "parents" && solvervariables[4] != "offspring" && solvervariables[4] != "parents_offspring" && solvervariables[4] != "random" && solvervariables[4] != "parents_random" && solvervariables[4] != "litter_random" && solvervariables[4] != "litter_parents_random" && solvervariables[4] != "ebv" && solvervariables[4] != "parents_ebv")
             {
                 cout << endl << "GENOTYPE_STRATEGY (" << solvervariables[4] << ") isn't an option! Check parameter file!" << endl;
                 exit (EXIT_FAILURE);
             }
-            tempgenostrat = "    - Genotyping strategy parameters\n";
-            tempgenostrat = tempgenostrat+"        - Generation at which animals will start to be genotyped:\t\t\t\t\t'"+solvervariables[0]+"'\n";
-            tempgenostrat = tempgenostrat+"        - Proportion of males genotyped:\t\t\t\t\t\t\t\t'"+solvervariables[1]+"'\n";
-            tempgenostrat = tempgenostrat+"        - Male genotyping strategy:\t\t\t\t\t\t\t\t\t'" + solvervariables[2] + "'\n";
-            tempgenostrat = tempgenostrat+"        - Proportion of females genotyped:\t\t\t\t\t\t\t\t'"+solvervariables[3]+"'\n";
-            tempgenostrat = tempgenostrat+"        - Female genotyping strategy:\t\t\t\t\t\t\t\t\t'" + solvervariables[4] + "'\n";
-            SimParameters.UpdateGenoGeneration(atoi(solvervariables[0].c_str()));
-            SimParameters.UpdateMalePropGenotype(atof(solvervariables[1].c_str()));
-            SimParameters.UpdateMaleWhoGenotype(solvervariables[2]);
-            SimParameters.UpdateFemalePropGenotype(atof(solvervariables[3].c_str()));
-            SimParameters.UpdateFemaleWhoGenotype(solvervariables[4]); break;
+            if(SimParameters.getOffspring() > 1 && (solvervariables[2] == "litter_random" || solvervariables[2] == "litter_parents_random"))
+            {
+                double temp = int(double(atof(solvervariables[1].c_str()) * SimParameters.getOffspring())+0.5) / double(SimParameters.getOffspring());
+                stringstream s1; s1 << temp; solvervariables[1] = s1.str();
+                
+            }
+            if(SimParameters.getOffspring() > 1 && (solvervariables[4] == "litter_random" || solvervariables[4] == "litter_parents_random"))
+            {
+                double temp = int(double(atof(solvervariables[3].c_str()) * SimParameters.getOffspring())+0.5) / double(SimParameters.getOffspring());
+                stringstream s1; s1 << temp; solvervariables[3] = s1.str();
+            }
+            if(solvervariables.size()==6 && solvervariables[2]!="parents_ebv" && solvervariables[2]!="ebv" && solvervariables[4]!="parents_ebv" && solvervariables[4]!="ebv")
+            {
+                cout << endl << "GENOTYPE_STRATEGY (" << solvervariables[5] << ") is only needed if doing ebv* based genotype strategy" << endl;
+                exit (EXIT_FAILURE);
+            }
+            if(solvervariables.size()==5)
+            {
+                tempgenostrat = "    - Genotyping strategy parameters\n";
+                tempgenostrat = tempgenostrat+"        - Generation at which animals will start to be genotyped:\t\t\t\t\t'"+solvervariables[0]+"'\n";
+                tempgenostrat = tempgenostrat+"        - Proportion of males genotyped:\t\t\t\t\t\t\t\t'"+solvervariables[1]+"'\n";
+                tempgenostrat = tempgenostrat+"        - Male genotyping strategy:\t\t\t\t\t\t\t\t\t'" + solvervariables[2] + "'\n";
+                tempgenostrat = tempgenostrat+"        - Proportion of females genotyped:\t\t\t\t\t\t\t\t'"+solvervariables[3]+"'\n";
+                tempgenostrat = tempgenostrat+"        - Female genotyping strategy:\t\t\t\t\t\t\t\t\t'" + solvervariables[4] + "'\n";
+                if(solvervariables[2]=="parents_ebv" || solvervariables[2]=="ebv" || solvervariables[4]=="parents_ebv" || solvervariables[4]=="ebv")
+                {
+                    tempgenostrat = tempgenostrat+"        - Portion of ebv distribution animals are genotyped from: \t\t\t\t\t'";
+                    tempgenostrat = tempgenostrat+SimParameters.getSelectionDir()+"' (Default)\n";
+                }
+                SimParameters.UpdateGenoGeneration(atoi(solvervariables[0].c_str()));
+                SimParameters.UpdateMalePropGenotype(atof(solvervariables[1].c_str()));
+                SimParameters.UpdateMaleWhoGenotype(solvervariables[2]);
+                SimParameters.UpdateFemalePropGenotype(atof(solvervariables[3].c_str()));
+                SimParameters.UpdateFemaleWhoGenotype(solvervariables[4]);
+                SimParameters.UpdateGenotypePortionofDistribution(SimParameters.getSelectionDir()); break;
+            }
+            if(solvervariables.size()==6)
+            {
+                tempgenostrat = "    - Genotyping strategy parameters\n";
+                tempgenostrat = tempgenostrat+"        - Generation at which animals will start to be genotyped:\t\t\t\t\t'"+solvervariables[0]+"'\n";
+                tempgenostrat = tempgenostrat+"        - Proportion of males genotyped:\t\t\t\t\t\t\t\t'"+solvervariables[1]+"'\n";
+                tempgenostrat = tempgenostrat+"        - Male genotyping strategy:\t\t\t\t\t\t\t\t\t'" + solvervariables[2]+"'\n";
+                tempgenostrat = tempgenostrat+"        - Proportion of females genotyped:\t\t\t\t\t\t\t\t'"+solvervariables[3]+"'\n";
+                tempgenostrat = tempgenostrat+"        - Female genotyping strategy:\t\t\t\t\t\t\t\t\t'" + solvervariables[4]+"'\n";
+                tempgenostrat = tempgenostrat+"        - Portion of ebv distribution animals are genotyped from: \t\t\t\t\t'"+solvervariables[5]+"'\n";
+                SimParameters.UpdateGenoGeneration(atoi(solvervariables[0].c_str()));
+                SimParameters.UpdateMalePropGenotype(atof(solvervariables[1].c_str()));
+                SimParameters.UpdateMaleWhoGenotype(solvervariables[2]);
+                SimParameters.UpdateFemalePropGenotype(atof(solvervariables[3].c_str()));
+                SimParameters.UpdateFemaleWhoGenotype(solvervariables[4]);
+                SimParameters.UpdateGenotypePortionofDistribution(solvervariables[5]); break;
+            }
+                
         }
         search++;
         if(search >= parm.size())
@@ -2395,10 +3317,17 @@ void read_generate_parameters(parameters &SimParameters, string parameterfile, s
             SimParameters.UpdateMalePropGenotype(0.0);
             SimParameters.UpdateMaleWhoGenotype("");
             SimParameters.UpdateFemalePropGenotype(0.0);
-            SimParameters.UpdateFemaleWhoGenotype(""); break;
+            SimParameters.UpdateFemaleWhoGenotype("");
+            SimParameters.UpdateGenotypePortionofDistribution(""); break;
         }
     }
     if(SimParameters.getMaleWhoGenotype() != ""){logfilestring=logfilestring+tempgenostrat;}
+    /* Check to see if genotype portion is correct */
+    if(SimParameters.getGenotypePortionofDistribution() != "high" && SimParameters.getGenotypePortionofDistribution() != "low" && SimParameters.getGenotypePortionofDistribution() != "tails" && SimParameters.getGenotypePortionofDistribution() != "")
+    {
+        cout <<endl<<"Parameter for deciding which portion of ebv distribution to decide if an animal is genotyped. Look at Manual!!"<<endl;
+        exit (EXIT_FAILURE);
+    }
     /* Genotype parents only */
     if(SimParameters.getMaleWhoGenotype() == "parents" && SimParameters.getMalePropGenotype() != 1.0)
     {
@@ -2444,27 +3373,169 @@ void read_generate_parameters(parameters &SimParameters, string parameterfile, s
     {
         cout << "\n Genotyping all female selection candidates, therefore need to use 'parents_offspring' option.\n"; exit (EXIT_FAILURE);
     }
-    /* Genotype offspring based on parentavg only */
-    if(SimParameters.getMaleWhoGenotype() == "ebv_parentavg" && SimParameters.getMalePropGenotype() == 1.0)
+    /* Genotype offspring based on ebv; generate preliminary blup first */
+    if(SimParameters.getMaleWhoGenotype() == "ebv" && SimParameters.getMalePropGenotype() == 1.0)
     {
         cout << "\n Genotyping all male selection candidates, therefore need to use 'offspring' option.\n"; exit (EXIT_FAILURE);
     }
-    if(SimParameters.getFemaleWhoGenotype() == "ebv_parentavg" && SimParameters.getFemalePropGenotype() == 1.0)
+    if(SimParameters.getFemaleWhoGenotype() == "ebv" && SimParameters.getFemalePropGenotype() == 1.0)
     {
         cout << "\n Genotyping all female selection candidates, therefore need to use 'offspring' option.\n"; exit (EXIT_FAILURE);
     }
-    /* Genotype all parents and offspring based on parentavg */
-    if(SimParameters.getMaleWhoGenotype() == "parents_ebv_parentavg" && SimParameters.getMalePropGenotype() == 1.0)
+    /* Genotype all parents and offspring based on ebv; generate preliminary blup first */
+    if(SimParameters.getMaleWhoGenotype() == "parents_ebv" && SimParameters.getMalePropGenotype() == 1.0)
     {
         cout << "\n Genotyping all male selection candidates, therefore need to use 'parents_offspring' option.\n"; exit (EXIT_FAILURE);
     }
-    if(SimParameters.getFemaleWhoGenotype() == "parents_ebv_parentavg" && SimParameters.getFemalePropGenotype() == 1.0)
+    if(SimParameters.getFemaleWhoGenotype() == "parents_ebv" && SimParameters.getFemalePropGenotype() == 1.0)
     {
         cout << "\n Genotyping all female selection candidates, therefore need to use 'parents_offspring' option.\n"; exit (EXIT_FAILURE);
     }
-    
-    
-    
-    
+    /**************************************************************************/
+    /* can only do litter_random for offspring or parent when offspring is greater than one */
+    /**************************************************************************/
+    if(SimParameters.getOffspring() == 1 && (SimParameters.getMaleWhoGenotype() == "litter_random" || SimParameters.getFemaleWhoGenotype() == "litter_random" || SimParameters.getMaleWhoGenotype() == "litter_parents_random" || SimParameters.getFemaleWhoGenotype() == "litter_parents_random"))
+    {
+        cout << "\n This genotyping option is only available for litter based populations ,therefore need to use 'litter' based option.\n";
+        exit (EXIT_FAILURE);
+    }
+    /* Genotype all parents and offspring based on parentavg */
+    if(SimParameters.getMaleWhoGenotype() == "litter_random" && SimParameters.getMalePropGenotype() == 0.0)
+    {
+        cout << "\n Genotyping no male selection candidates, alter parameter file.\n"; exit (EXIT_FAILURE);
+    }
+    if(SimParameters.getMaleWhoGenotype() == "litter_random" && SimParameters.getMalePropGenotype() == 1.0)
+    {
+        cout << "\n Genotyping all male selection candidates, alter parameter file.\n"; exit (EXIT_FAILURE);
+    }
+    if(SimParameters.getFemaleWhoGenotype() == "litter_random" && SimParameters.getFemalePropGenotype() == 0.0)
+    {
+        cout << "\n Genotyping no female selection candidates, alter parameter file.\n"; exit (EXIT_FAILURE);
+    }
+    if(SimParameters.getFemaleWhoGenotype() == "litter_random" && SimParameters.getFemalePropGenotype() == 1.0)
+    {
+        cout << "\n Genotyping all female selection candidates, alter parameter file.\n"; exit (EXIT_FAILURE);
+    }
+    if(SimParameters.getMaleWhoGenotype() == "litter_parents_random" && SimParameters.getMalePropGenotype() == 0.0)
+    {
+        cout << "\n Genotyping no male selection candidates, alter parameter file.\n"; exit (EXIT_FAILURE);
+    }
+    if(SimParameters.getMaleWhoGenotype() == "litter_parents_random" && SimParameters.getMalePropGenotype() == 1.0)
+    {
+        cout << "\n Genotyping all male selection candidates, alter parameter file.\n"; exit (EXIT_FAILURE);
+    }
+    if(SimParameters.getFemaleWhoGenotype() == "litter_parents_random" && SimParameters.getFemalePropGenotype() == 0.0)
+    {
+        cout << "\n Genotyping no female selection candidates, alter parameter file.\n"; exit (EXIT_FAILURE);
+    }
+    if(SimParameters.getFemaleWhoGenotype() == "litter_parents_random" && SimParameters.getFemalePropGenotype() == 1.0)
+    {
+        cout << "\n Genotyping all female selection candidates, alter parameter file.\n"; exit (EXIT_FAILURE);
+    }
+    /************************/
+    /** Blending A22 and G **/
+    /************************/
+    search = 0; string tempblend;
+    while(1)
+    {
+        size_t fnd = parm[search].find("BLENDING_GA22:");
+        if(fnd!=std::string::npos)
+        {
+            if(SimParameters.getEBV_Calc() != "ssgblup")
+            {
+                cout << endl << "Need to do selection with a 'ssgblup' prediction option for this option. Change parameter file accordingly!" << endl;
+                exit (EXIT_FAILURE);
+            }
+            size_t pos = parm[search].find(":", 0); parm[search].erase(0, pos + 1);
+            vector < string > solvervariables(7,"");
+            for(int i = 0; i < 7; i++)
+            {
+                pos = parm[search].find(" ",0);
+                solvervariables[i] = parm[search].substr(0,pos);
+                solvervariables[i].erase(remove(solvervariables[i].begin(), solvervariables[i].end(), ' '),solvervariables[i].end());
+                if(pos != std::string::npos){parm[search].erase(0, pos + 1);}
+                if(pos == std::string::npos){parm[search].clear();}
+            }
+            int start = 0;
+            while(start < solvervariables.size())
+            {
+                if(solvervariables[start] == ""){solvervariables.erase(solvervariables.begin()+start);}
+                if(solvervariables[start] != ""){start++;}
+            }
+            //for(int i = 0; i < solvervariables.size(); i++){cout << solvervariables[i] << endl;}
+            /* needs to be greater than number of random generations of founder selection + 2 in order to make G and A compatible */
+            if(solvervariables.size() != 2)
+            {
+                cout << endl << "The 'BLENDING_GA22' parameter requires two values!! Check parameter file!" << endl; exit (EXIT_FAILURE);
+            }
+            if(atof(solvervariables[0].c_str()) < 0.0 || atof(solvervariables[0].c_str()) > 1.0)
+            {
+                cout << endl << "BLENDING_GA22 (" << solvervariables[0] << ") isn't possible! Check parameter file!" << endl;
+                exit (EXIT_FAILURE);
+            }
+            if(atof(solvervariables[1].c_str()) < 0.0 || atof(solvervariables[1].c_str()) > 1.0)
+            {
+                cout << endl << "BLENDING_GA22 (" << solvervariables[1] << ") isn't possible! Check parameter file!" << endl;
+                exit (EXIT_FAILURE);
+            }
+            if((atof(solvervariables[0].c_str()) + atof(solvervariables[1].c_str())) != 1.0)
+            {
+                cout << endl << "BLENDING_GA22 parameters do not sum to 1.0! Check parameter file!" << endl;
+                exit (EXIT_FAILURE);
+            }
+            SimParameters.add_Toblending_G_A22(atof(solvervariables[0].c_str()));
+            SimParameters.add_Toblending_G_A22(atof(solvervariables[1].c_str()));
+            tempblend = "    - Genomic matrix blending factors:\t\t\t\t\t\t\t\t'G("+solvervariables[0]+") + A22("+solvervariables[1]+")'\n"; break;
+        }
+        search++;
+        if(search >= parm.size())
+        {
+            SimParameters.add_Toblending_G_A22(0.95); SimParameters.add_Toblending_G_A22(0.05);
+            tempblend = "    - Genomic matrix blending factors:\t\t\t\t\t\t\t\t'G(0.95) + A22(0.05)' (Default)\n"; break;
+        }
+    }
+    if(SimParameters.getEBV_Calc() == "ssgblup"){logfilestring=logfilestring+tempblend;}
+    /****************/
+    /** Imputation **/
+    /****************/
+    search = 0; string tempimpute;
+    while(1)
+    {
+        size_t fnd = parm[search].find("IMPUTATION:");
+        if(fnd!=std::string::npos)
+        {
+            if(SimParameters.getEBV_Calc() != "ssgblup")
+            {
+                cout << endl << "Need to do selection with a 'ssgblup' prediction option for this option. Change parameter file!" << endl;
+                exit (EXIT_FAILURE);
+            }
+            size_t pos = parm[search].find(":", 0); parm[search].erase(0, pos + 1);
+            vector < string > solvervariables(7,"");
+            for(int i = 0; i < 7; i++)
+            {
+                pos = parm[search].find(" ",0);
+                solvervariables[i] = parm[search].substr(0,pos);
+                solvervariables[i].erase(remove(solvervariables[i].begin(), solvervariables[i].end(), ' '),solvervariables[i].end());
+                if(pos != std::string::npos){parm[search].erase(0, pos + 1);}
+                if(pos == std::string::npos){parm[search].clear();}
+            }
+            int start = 0;
+            while(start < solvervariables.size())
+            {
+                if(solvervariables[start] == ""){solvervariables.erase(solvervariables.begin()+start);}
+                if(solvervariables[start] != ""){start++;}
+            }
+            //for(int i = 0; i < solvervariables.size(); i++){cout << solvervariables[i] << endl;}
+            /* needs to be greater than number of random generations of founder selection + 2 in order to make G and A compatible */
+            if(solvervariables.size() != 1)
+            {
+                cout << endl << "The 'IMPUTATION' parameter requires only one value!! Check parameter file!" << endl; exit (EXIT_FAILURE);
+            }
+            SimParameters.UpdateImputationFile(solvervariables[0]);
+            tempimpute = "    - Perform Imputation using the following script:\t\t\t\t\t\t\t'"+solvervariables[0]+"'\n"; break;
+        }
+        search++;
+        if(search >= parm.size()){break;}
+    }
+    if(SimParameters.getImputationFile() != "nofile"){logfilestring=logfilestring+tempimpute;}
 }
-

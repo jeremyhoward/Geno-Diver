@@ -16,8 +16,12 @@
 #include <Eigen/LU>
 #include <mkl.h>
 
-#include "HaplofinderClasses.h"
 #include "Animal.h"
+#include "HaplofinderClasses.h"
+#include "MatingDesignClasses.h"
+#include "ParameterClass.h"
+#include "Genome_ROH.h"
+#include "OutputFiles.h"
 
 using namespace std;
 
@@ -69,9 +73,6 @@ void Unfavorable_Regions::Update_LSM(double temp){LS_Mean = temp;}
 void Unfavorable_Regions::Update_Tstat(double temp){t_value = temp;}
 bool sortByStart(const Unfavorable_Regions &lhs, const Unfavorable_Regions &rhs) {return lhs.StartPos_R < rhs.StartPos_R;}
 
-
-
-
 //////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////
 //         Class to store regions within each chromosome        //
@@ -103,9 +104,149 @@ void Unfavorable_Regions_sub::Update_subPhenotype(double temp){Phenotype_s = tem
 void Unfavorable_Regions_sub::Update_subAnimal_IDs(std::string temp){Animal_ID_s = temp;}
 bool sortByPheno(const Unfavorable_Regions_sub &lhs, const Unfavorable_Regions_sub &rhs) {return lhs.Phenotype_s < rhs.Phenotype_s;}
 
-////////////////////////////////////////////////////////////////////////////////////
-////////////////////////////     Catch all Functions    ////////////////////////////
-////////////////////////////////////////////////////////////////////////////////////
+/**********************************************/
+/* Functions from HaplofinderClasses.cpp      */
+/**********************************************/
+void ReadGenoDiverMapFile_Index(outputfiles &OUTPUTFILES, vector < int > &chr, vector < int > &position, vector < int > &index, vector < CHR_Index> &chr_index,ostream& logfileloc);
+void ReadGenoDiverPhenoGenoFile(vector <Animal> &population,outputfiles &OUTPUTFILES,vector <int> const &traingeneration,vector <string> &id, vector <double> &pheno, vector <double> &trueebv, vector<int> &phenogenorownumber, vector <string> &genotype, vector <string> &genotypeID);
+void simulationlambda(vector <double> const &pheno, vector <double> const &trueebv, vector <double> &lambda);
+void subtractmean(vector <double> &pheno);
+void GenerateAinvGenoDiver(outputfiles &OUTPUTFILES,vector < string > const &uniqueID,vector < string > const &id, double* Relationshipinv_mkl);
+void GenerateLHSRed(vector <int> const &X_i, vector <int> const &X_j, vector <double> const &X_A, int dimension, double* Relationshipinv_mkl, vector <int> &ZW_i, vector <int> &ZW_j, vector <double> &ZW_A, vector <string> id, vector <string> uniqueID,vector <int> &LHSred_i, vector <int> &LHSred_j, vector <double> &LHSred_A, int dim_lhs, vector <double> const &lambda);
+void updateLHSinv(vector <int> const &X_i, vector <int> const &X_j, vector <double> const &X_A, int dimension, vector <int> &ZW_i, vector <int> &ZW_j, vector <double> &ZW_A,vector <int> &LHSred_i, vector <int> &LHSred_j, vector <double> &LHSred_A,vector <string> uniqueID, vector <int> const &sub_genotype,float * LHSinvupdated,int dim_lhs, int upddim_lhs, float * solutions, vector < double > const &pheno);
+void estimateROHeffect(float * LHSinvupdated,float * solutions,int upddim_lhs,vector < string > const &factor_red, vector < int > const &zero_columns_red, vector <double> &LSM, vector <double> &T_stat, double resvar,vector<vector<string>> &FIXED_CLASS, vector<vector<string >> &uniqueclass,vector<vector<double>> &FIXED_COV,vector <double> const &MeanPerCovClass);
+double phenocutoff(vector <CHR_Index> chr_index,int null_samples,int min_Phenotypes,vector <int> const &width,vector <string> const &genotype,vector < int > const &phenogenorownumber,vector <double> const &pheno,int dim_lhs,vector <int> const &X_i, vector <int> const &X_j, vector <double> const &X_A, int dimension, vector <int> &ZW_i, vector <int> &ZW_j, vector <double> &ZW_A,vector <string> uniqueID,vector <int> &LHSred_i, vector <int> &LHSred_j, vector <double> &LHSred_A,vector < string > const &factor_red, vector < int > const &zero_columns_red,double res_var,vector<vector<string>> &FIXED_CLASS, vector<vector<string >> &uniqueclass,vector<vector<double>> &FIXED_COV,vector <double> const &MeanPerCovClass,string unfav_direc,ostream& logfile);
+void Step1(vector < Unfavorable_Regions_sub > regions_sub, double phenotype_cutoff, string unfav_direc, int chromo, vector <CHR_Index> chr_index,int min_Phenotypes,vector <int> const &width,vector <string> const &genotype,vector < int > const &phenogenorownumber,vector <double> const &pheno, vector <string> const &id,vector<int> const &chr, vector<int> const &position, vector<int> const &index,vector < Unfavorable_Regions > &regions);
+void Step2(vector < Unfavorable_Regions > &regions,int min_Phenotypes,vector <string> const &genotype,vector < int > const &phenogenorownumber,vector <double> const &pheno,int dim_lhs,vector <int> const &X_i, vector <int> const &X_j, vector <double> const &X_A, int dimension, vector <int> &ZW_i, vector <int> &ZW_j, vector <double> &ZW_A,vector <string> uniqueID,vector <int> &LHSred_i, vector <int> &LHSred_j, vector <double> &LHSred_A,vector < string > const &factor_red, vector < int > const &zero_columns_red,double res_var,vector<vector<string>> &FIXED_CLASS, vector<vector<string >> &uniqueclass,vector<vector<double>> &FIXED_COV,vector <double> const &MeanPerCovClass,string unfav_direc,double one_sided_t,double phenotype_cutoff,ostream& logfile);
+void Step3(vector < Unfavorable_Regions > &regions,vector <double> const &pheno,vector <string> const &genotype,vector < int > const &phenogenorownumber,vector < string > const &id);
+void replaceAll(string& str, const string& from, const string& to);
+bool sortByLength(const Unfavorable_Regions &alength, const Unfavorable_Regions &blength){return alength.Length_R > blength.Length_R;}
+
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+//////////////////      Function used to enter into haplotype finder functions    //////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////
+void EnterHaplotypeFinder(parameters &SimParameters,vector <Unfavorable_Regions> &trainregions,vector <Animal> &population,int Gen,int retraingeneration,string unfav_direc,outputfiles &OUTPUTFILES,ostream& logfileloc)
+{
+    if(Gen < (SimParameters.getstartgen() + SimParameters.getGenfoundsel()))
+    {
+        logfileloc << "   Not enough generations completed to begin Haplotype Finder Algorithm" << endl << endl;
+    }
+    if(Gen > (SimParameters.getstartgen() + SimParameters.getGenfoundsel()) && Gen != retraingeneration)
+    {
+        logfileloc << "   Not a retraining generation for Haplotype Finder Algorithm" << endl << endl;
+    }
+    if(Gen == retraingeneration)
+    {
+        logfileloc << "   Begin to Identify Haplotypes in ROH associated with " << unfav_direc << " phenotypes." << endl;
+        trainregions.clear();                           /* First clear old haplotypes to start fresh */
+        /* Figure out training Generation */
+        vector < int > traingeneration;
+        for(int i = Gen-1; i > (Gen - SimParameters.gettraingen()-1); i--){traingeneration.push_back(i);}
+        //for(int i = 0; i < traingeneration.size(); i++){cout << traingeneration[i] << endl;}
+        /* Default Parameters */
+        double minimum_freq = 0.0075;
+        int null_samples = 250;
+        vector <int> width {50,45,40,35,30,25,20};
+        double one_sided_t = 2.326;
+        double phenotype_cutoff;
+        double residualvariance;
+        /* Vectors used in Program */
+        vector < int > haplo_chr;                                   /* stores chromosome in vector */
+        vector < int > haplo_position;                              /* stores position */
+        vector < int > haplo_index;                                 /* used to grab chromosome */
+        vector < CHR_Index > haplo_chr_index;                       /* Class to store chromosomal information */
+        vector < string > id;                                       /* ID */
+        vector < double > pheno;                                    /* Phenotype */
+        vector < double > trueebv;                                  /* Used to calculate lambda in MMME */
+        vector < int > phenogenorownumber;                          /* match to genotype row */
+        /* depending on how many fixed effect parameters their are and at what point need to make different sized matrices */
+        vector < vector < string > > FIXED_CLASS(0,vector <string>(0)); /* Stores Classification Fixed Effects */
+        vector < vector < string > > uniqueclass(0,vector <string>(0)); /* Number of levels within each classification variable */
+        vector < vector < double > > FIXED_COV(0,vector <double>(0));   /* Stores Covariate Fixed Effects */
+        vector < double > MeanPerCovClass(0,0.0);                       /* mean for each covariate */
+        vector < string > genotype;                         /* Genotype String */
+        vector < string > genotypeID;                       /* ID pertaining to Genotype String */
+        vector < string > uniqueID;                         /* Sets the rows and cols up for ZtZ */
+        vector <int> X_i; vector <int> X_j; vector <double> X_A;                    /* Used to store X in sparse ija format */
+        vector <int> ZW_i; vector <int> ZW_j; vector <double> ZW_A;                 /* Used to store ZW in sparse ija format */
+        vector <int> LHSred_i; vector <int> LHSred_j; vector <double> LHSred_A;     /* Used to store LHS in sparse symmetric ija format */
+        vector < double > lambda(2,0.0);
+        ReadGenoDiverMapFile_Index(OUTPUTFILES,haplo_chr,haplo_position,haplo_index,haplo_chr_index,logfileloc);      /* fill map vectors */
+        ReadGenoDiverPhenoGenoFile(population,OUTPUTFILES,traingeneration,id,pheno,trueebv,phenogenorownumber,genotype,genotypeID);
+        logfileloc << "      - Training Population Size " << id.size() << "." << endl;
+        simulationlambda(pheno,trueebv,lambda);
+        residualvariance = lambda[0]; lambda[0] = lambda[0] / double(lambda[1]); lambda[1] = 0.0;
+        subtractmean(pheno);                                /* Subtract off mean */
+        time_t fullped_begin_time = time(0);
+        for(int i = 0; i < genotypeID.size(); i++){uniqueID.push_back(genotypeID[i]);}
+        double* Relationshipinv_mkl = new double[uniqueID.size()*uniqueID.size()];
+        for(int i = 0; i < (uniqueID.size()*uniqueID.size()); i++){Relationshipinv_mkl[i] = 0.0;}
+        GenerateAinvGenoDiver(OUTPUTFILES,uniqueID,id,Relationshipinv_mkl);            /* Generate Ainv for subset of animals */
+        time_t fullped_end_time = time(0);
+        logfileloc <<"      - Ainv: "<<uniqueID.size()<<" "<<uniqueID.size()<<" ("<<difftime(fullped_end_time,fullped_begin_time);
+        logfileloc <<" seconds)"<<endl;
+        time_t fulllhs_begin_time = time(0);
+        /* X is just a column of 1's since mean is only fixed effect */
+        int dimension = 1; int dim_lhs = dimension+uniqueID.size();
+        for(int i = 0; i < pheno.size(); i++){X_i.push_back(X_j.size()); X_j.push_back(0); X_A.push_back(1);}
+        /*** Generate LHS based on reduced Model ***/
+        /* Now know the dimension of LHS so fill LHS with appropriate columns */
+        GenerateLHSRed(X_i,X_j,X_A,dimension,Relationshipinv_mkl,ZW_i,ZW_j,ZW_A,id,uniqueID,LHSred_i,LHSred_j,LHSred_A,dim_lhs,lambda);
+        time_t fulllhs_end_time = time(0);
+        logfileloc <<"      - LHS reduced model: "<<dim_lhs<<"-"<<dim_lhs<<" ("<<difftime(fulllhs_end_time,fulllhs_begin_time);
+        logfileloc <<" seconds)"<<endl;
+        delete [] Relationshipinv_mkl;
+        fulllhs_end_time = time(0);
+        /***                  Generate vector add zero for contrasts                  ***/
+        vector < string > factor_red; vector < int > zero_columns_red;
+        factor_red.push_back("int"); zero_columns_red.push_back(1);
+        for(int i = 0; i < uniqueID.size(); i++){zero_columns_red.push_back(1); factor_red.push_back("Random");}
+        //cout << zero_columns_red.size() << " " << factor_red.size() << endl;
+        int min_Phenotypes = minimum_freq * id.size() + 0.5;  /* Determines Minimum Number and rounds up correctly */
+        phenotype_cutoff = phenocutoff(haplo_chr_index,null_samples,min_Phenotypes,width,genotype,phenogenorownumber,pheno,dim_lhs,X_i,X_j,X_A,dimension,ZW_i,ZW_j,ZW_A,uniqueID,LHSred_i,LHSred_j,LHSred_A,factor_red,zero_columns_red,residualvariance,FIXED_CLASS,uniqueclass,FIXED_COV,MeanPerCovClass,unfav_direc,logfileloc);
+        fulllhs_end_time = time(0);
+        logfileloc <<"      - Minimum phenotype cutoff: "<<phenotype_cutoff<<" ("<<difftime(fulllhs_end_time,fulllhs_begin_time);
+        logfileloc <<" seconds)"<<endl;
+        logfileloc <<"      - Begin Looping Across Chromosomes: " << endl;
+        for(int chromo = 0; chromo < haplo_chr_index.size(); chromo++)
+        {
+            time_t chr_begin_time = time(0);
+            vector < Unfavorable_Regions > regions;                         /* vector of objects to store everything about unfavorable region */
+            vector < Unfavorable_Regions_sub > regions_sub;                 /* vector of objects to store everything about unfavorable region */
+            Step1(regions_sub,phenotype_cutoff,unfav_direc,chromo,haplo_chr_index,min_Phenotypes,width,genotype,phenogenorownumber,pheno,id,haplo_chr,haplo_position,haplo_index,regions);
+            Step2(regions,min_Phenotypes,genotype,phenogenorownumber,pheno,dim_lhs,X_i,X_j,X_A,dimension,ZW_i,ZW_j,ZW_A,uniqueID,LHSred_i,LHSred_j,LHSred_A,factor_red,zero_columns_red,residualvariance,FIXED_CLASS,uniqueclass,FIXED_COV,MeanPerCovClass,unfav_direc,one_sided_t,phenotype_cutoff,logfileloc);
+            Step3(regions,pheno,genotype,phenogenorownumber,id);
+            for(int i = 0; i < regions.size(); i++)
+            {
+                Unfavorable_Regions region_temp(regions[i].getChr_R(),regions[i].getStPos_R(),regions[i].getEnPos_R(),regions[i].getStartIndex_R(),regions[i].getEndIndex_R(),regions[i].getHaplotype_R(),regions[i].getLength_R(),regions[i].getRawPheno_R(),regions[i].getEffect(),regions[i].getLSM_R(), regions[i].gettval());
+                trainregions.push_back(region_temp);
+            }
+            regions.clear(); regions_sub.clear();
+            time_t chr_end_time = time(0);
+            logfileloc<<"          - Finished Chromosome: "<<chromo+1<<" ("<<difftime(chr_end_time,chr_begin_time)<<" seconds)"<<endl;
+        }
+        logfileloc<<"      - Finished Looping Across Chromosomes (Regions " << trainregions.size() << "." << endl;
+        //for(int i = 0; i < trainregions.size(); i++)
+        //{
+        //    cout << trainregions[i].getChr_R() << " " << trainregions[i].getStPos_R() << " " << trainregions[i].getEnPos_R() << " ";
+        //    cout << trainregions[i].getStartIndex_R()<< " " <<trainregions[i].getEndIndex_R()<< " " <<trainregions[i].getHaplotype_R()<<" ";
+        //    cout << trainregions[i].getLength_R() << " " << trainregions[i].getRawPheno_R() << " " << trainregions[i].getEffect() << " ";
+        //    cout << trainregions[i].getLSM_R() << " " << trainregions[i].gettval() << endl;
+        //}
+        //cout << endl << endl;
+        sort(trainregions.begin(),trainregions.end(),sortByLength);
+        haplo_chr.clear(); haplo_position.clear(); haplo_index.clear(); haplo_chr_index.clear(); id.clear(); pheno.clear();
+        trueebv.clear(); phenogenorownumber.clear(); genotype.clear(); genotypeID.clear(); uniqueID.clear(); X_i.clear(); X_j.clear();
+        X_A.clear(); ZW_i.clear(); ZW_j.clear(); ZW_A.clear(); LHSred_i.clear(); LHSred_j.clear(); LHSred_A.clear(); lambda.clear();
+        logfileloc << "   Finished Identify Unfavorable Haplotypes." << endl << endl;
+    }
+}
+
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////           Catch all Functions              ////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////
 //// Calculate Correlation ////
 ///////////////////////////////
@@ -139,7 +280,6 @@ void calculatecorrelation(vector <double> &inbreedingload, vector <double> &prog
     /* Compute Covariances */
     for(int i = 1; i < 5; i++){outcorrelations[i-1] = ((Covariances[i-1] / double (Variances[0]*Variances[i])) / double (double(inbreedingload.size()-1)));}
 }
-
 
 void replaceAll(string& str, const string& from, const string& to)
 {
@@ -206,12 +346,12 @@ void simulationlambda(vector <double> const &pheno, vector <double> const &truee
 ////////////////////////////////
 /// Read GenoDiver Map File  ///
 ////////////////////////////////
-void ReadGenoDiverMapFile_Index(string Marker_Map, vector < int > &chr, vector < int > &position, vector < int > &index, vector < CHR_Index> &chr_index,ostream& logfileloc)
+void ReadGenoDiverMapFile_Index(outputfiles &OUTPUTFILES, vector < int > &chr, vector < int > &position, vector < int > &index, vector < CHR_Index> &chr_index,ostream& logfileloc)
 {
     /* Read in file */
     vector <string> numbers; string line;
     ifstream infile;
-    infile.open(Marker_Map.c_str());
+    infile.open(OUTPUTFILES.getloc_Marker_Map().c_str());
     if(infile.fail()){cout << "Error Opening Map File \n"; exit (EXIT_FAILURE);}
     while (getline(infile,line)){numbers.push_back(line);}  /* Stores in vector and each new line push back to next space */
     for(int i = 1; i < numbers.size(); i++)
@@ -304,14 +444,14 @@ void ReadMapFile_Index(string mapfile, vector < int > &chr, vector < int > &posi
 /////////////////////////////////////////////////
 // Fill pheno and geno vectors from Geno-Diver //
 /////////////////////////////////////////////////
-void ReadGenoDiverPhenoGenoFile(vector <Animal> &population, string Master_DF_File, string Pheno_GMatrix_File,vector <int> const &traingeneration,vector <string> &id, vector <double> &pheno, vector <double> &trueebv, vector<int> &phenogenorownumber, vector <string> &genotype, vector <string> &genotypeID)
+void ReadGenoDiverPhenoGenoFile(vector <Animal> &population,outputfiles &OUTPUTFILES,vector <int> const &traingeneration,vector <string> &id, vector <double> &pheno, vector <double> &trueebv, vector<int> &phenogenorownumber, vector <string> &genotype, vector <string> &genotypeID)
 {
     /**********************************************************************************/
     /* First read in all animals that didn't get selected from appropriate generation */
     /**********************************************************************************/
     vector <string> numbers; string line;                                               /* Import file and put each row into a vector */
     ifstream infile1;
-    infile1.open(Master_DF_File.c_str());
+    infile1.open(OUTPUTFILES.getloc_Master_DF().c_str());
     if(infile1.fail()){cout << "Error Opening Phenotype File \n"; exit (EXIT_FAILURE);}
     while (getline(infile1,line)){numbers.push_back(line);}     /* Stores in vector and each new line push back to next space */
     //cout << numbers.size() << endl << numbers[0] << endl;
@@ -330,8 +470,8 @@ void ReadGenoDiverPhenoGenoFile(vector <Animal> &population, string Master_DF_Fi
             {
                 //cout << lineVar[18] << " " << lineVar[19] << " " << lineVar[20] << " " << lineVar[21] << " " << lineVar[22] << " ";
                 //cout << lineVar[23] << " " << lineVar[24] << " " << lineVar[25] << " " << lineVar[26] << endl;
-                id.push_back(lineVar[0]); pheno.push_back(atof(lineVar[20].c_str()));
-                phenogenorownumber.push_back(-5); trueebv.push_back(atof(lineVar[24].c_str())); break;
+                id.push_back(lineVar[0]); pheno.push_back(atof(lineVar[21].c_str()));
+                phenogenorownumber.push_back(-5); trueebv.push_back(atof(lineVar[25].c_str())); break;
                 //cout << id[id.size()-1] << " " << pheno[pheno.size()-1] << " ";
                 //cout << phenogenorownumber[pheno.size()-1] << " " << trueebv[trueebv.size()-1] << endl;
             }
@@ -357,8 +497,8 @@ void ReadGenoDiverPhenoGenoFile(vector <Animal> &population, string Master_DF_Fi
             if(population[i].getGeneration() == traingeneration[j])
             {
                 stringstream s1; s1 << population[i].getID(); string tempvar = s1.str();
-                id.push_back(tempvar); pheno.push_back(population[i].getPhenotype());
-                phenogenorownumber.push_back(-5); trueebv.push_back(population[i].getBreedingValue());
+                id.push_back(tempvar); pheno.push_back((population[i].get_Phenvect())[0]);
+                phenogenorownumber.push_back(-5); trueebv.push_back((population[i].get_BVvect())[0]);
                 break;
             }
             if(population[i].getGeneration() != traingeneration[j]){j++;}
@@ -372,7 +512,7 @@ void ReadGenoDiverPhenoGenoFile(vector <Animal> &population, string Master_DF_Fi
     for(int i = 0; i < id.size(); i++){genotype.push_back(""); genotypeID.push_back("");}
     /* Import file and put each row into a vector */
     ifstream infile2;
-    infile2.open(Pheno_GMatrix_File.c_str());
+    infile2.open(OUTPUTFILES.getloc_Pheno_GMatrix().c_str());
     if(infile2.fail()){cout << "Error Opening Genotype File \n"; exit (EXIT_FAILURE);}
     while (getline(infile2,line)){numbers.push_back(line);}     /* Stores in vector and each new line push back to next space */
     /* now loop through and find genotype */
@@ -592,11 +732,11 @@ void uniquephenotypeanimals(vector < string > &uniqueID, vector < string > const
 // Generate A Inverse //
 ////////////////////////
 // GenoDiver File //
-void GenerateAinvGenoDiver(string pedigreefile,vector < string > const &uniqueID,vector < string > const &id, double* Relationshipinv_mkl)
+void GenerateAinvGenoDiver(outputfiles &OUTPUTFILES,vector < string > const &uniqueID,vector < string > const &id, double* Relationshipinv_mkl)
 {
     vector < string > animal; vector < string > sire; vector < string > dam; string line;
     ifstream infile22;
-    infile22.open(pedigreefile);                                                    /* This file has all animals in it */
+    infile22.open(OUTPUTFILES.getloc_Pheno_Pedigree().c_str());                            /* This file has all animals in it */
     if(infile22.fail()){cout << "Error Opening File Pedigree File \n"; exit (EXIT_FAILURE);}
     while (getline(infile22,line))
     {

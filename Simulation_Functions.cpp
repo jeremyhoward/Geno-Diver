@@ -13,12 +13,13 @@
 #include <Eigen/Dense>
 #include <Eigen/LU>
 #include <Eigen/Core>
-/* Ensures memory is freed with a small drop in performance */
 
 #include "HaplofinderClasses.h"
 #include "Animal.h"
 #include "MatingDesignClasses.h"
 #include "ParameterClass.h"
+#include "OutputFiles.h"
+
 
 
 using namespace std;
@@ -177,7 +178,7 @@ void pedigree_inbreeding(string phenotypefile, double* output_f)
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 /* Calculates inbreeding: pass animal sire and dam as a reference; output is output_f based on Meuwissen & Luo Algorithm*/
-double lethal_pedigree_inbreeding(string phenotypefile, int tempsireid, int tempdamid)
+double lethal_pedigree_inbreeding(outputfiles &OUTPUTFILES, int tempsireid, int tempdamid)
 {
     vector < int > animal;
     vector < int > sire;
@@ -185,7 +186,7 @@ double lethal_pedigree_inbreeding(string phenotypefile, int tempsireid, int temp
     /*read in Pheno_Pedigree file and store in a vector to determine how many animals their are */
     string line;
     ifstream infile2;
-    infile2.open(phenotypefile.c_str());                                                 /* This file has all animals in it */
+    infile2.open(OUTPUTFILES.getloc_Pheno_Pedigree().c_str());                                                 /* This file has all animals in it */
     if(infile2.fail()){cout << "Error Opening Pedigree File\n";}
     while (getline(infile2,line))
     {
@@ -244,13 +245,13 @@ double lethal_pedigree_inbreeding(string phenotypefile, int tempsireid, int temp
 /////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////
 /* Calculates subset of a relationship matrix */
-void pedigree_relationship(string phenotypefile, vector <int> const &parent_id, double* output_subrelationship)
+void pedigree_relationship(outputfiles &OUTPUTFILES, vector <int> const &parent_id, double* output_subrelationship)
 {
     vector < int > animal; vector < int > sire; vector < int > dam;
     /*read in Pheno_Pedigree file and store in a vector to determine how many animals their are */
     string line;
     ifstream infile2;
-    infile2.open(phenotypefile.c_str());                                                 /* This file has all animals in it */
+    infile2.open(OUTPUTFILES.getloc_Pheno_Pedigree().c_str());                  /* This file has all animals in it */
     if(infile2.fail()){cout << "Error Opening Pedigree File\n";}
     while (getline(infile2,line))
     {
@@ -319,12 +320,12 @@ void pedigree_relationship(string phenotypefile, vector <int> const &parent_id, 
 //////////////////////     Pedigree Relationship Matrix (new)      //////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////
-void pedigree_relationship_Colleau(string phenotypefile, vector <int> const &parent_id, double* output_subrelationship)
+void pedigree_relationship_Colleau(outputfiles &OUTPUTFILES, vector <int> const &parent_id, double* output_subrelationship)
 {
     vector < int > animal; vector < int > sire; vector < int > dam; vector < double > f;
     /*read in Pheno_Pedigree file and store in a vector to determine how many animals their are */
     string line; ifstream infile2;
-    infile2.open(phenotypefile.c_str());                                                 /* This file has all animals in it */
+    infile2.open(OUTPUTFILES.getloc_Pheno_Pedigree().c_str());       /* This file has all animals in it */
     if(infile2.fail()){cout << "Error Opening Pedigree File\n";}
     while (getline(infile2,line))
     {
@@ -695,396 +696,6 @@ void grm_prevgrm(double* input_m, string genofile, vector < string > const &newg
             output_grm22[(i*n)+j] /= scaler;
         }
     }
-}
-////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////
-/////////////////////////     FUNCTION 7       /////////////////////////
-////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////
-/* Generate QTL Summary Statistics */
-void generatesummaryqtl(string inputfilehap, string inputfileqtl, string outputfile, int generations,vector < int > const &idgeneration, vector < double > const &tempaddvar, vector < double > const &tempdomvar,  vector < int > const &tempdeadfit)
-{
-    /* Compute Number of Haplotypes by Generation */
-    /* read in all animals haplotype ID's first; Don't need to really worry about this getting big; already in order */
-    vector < vector < int > > PaternalHaplotypeIDs;
-    vector < vector < int > > MaternalHaplotypeIDs;
-    string line;
-    int linenumbera = 0;
-    ifstream infile22;
-    infile22.open(inputfilehap);
-    if(infile22.fail()){cout << "Error Opening File\n";}
-    while (getline(infile22,line))
-    {
-        size_t pos = line.find(" ", 0); line.erase(0, pos + 1);                                     /* Don't need animal ID so skip */
-        pos = line.find(" ",0); line.erase(0,pos + 1);                                              /* Don't need phenotype so skip*/
-        pos = line.find(" ",0); line.erase(0,pos + 1);                                              /* Do not need marker genotypes so skip */
-        pos = line.find(" ",0); string PaternalHap = line.substr(0,pos);  line.erase(0,pos + 1);    /* Grap paternal haplotype ID's */
-        string MaternalHap = line;                                                                  /* Grap maternal haplotype ID's */
-        /* Unstring each one and place in appropriate 2-d vector */
-        vector < int > temp_pat; string quit = "NO";
-        while(quit != "YES")
-        {
-            size_t pos = PaternalHap.find("_",0);
-            if(pos > 0)                                                                         /* hasn't reached last one yet */
-            {
-                temp_pat.push_back(stoi(PaternalHap.substr(0,pos)));                             /* extend column by 1 */
-                PaternalHap.erase(0, pos + 1);
-            }
-            if(pos == std::string::npos){quit = "YES";}                                         /* has reached last one so now kill while loop */
-        }
-        PaternalHaplotypeIDs.push_back(temp_pat);                                               /* push back row */
-        vector < int > temp_mat; quit = "NO";
-        while(quit != "YES")
-        {
-            size_t pos = MaternalHap.find("_",0);
-            if(pos > 0)                                                                         /* hasn't reached last one yet */
-            {
-                temp_mat.push_back(stoi(MaternalHap.substr(0,pos)));                            /* extend column by 1 */
-                MaternalHap.erase(0, pos + 1);
-            }
-            if(pos == std::string::npos){quit = "YES";}                                         /* has reached last one so now kill while loop */
-        }
-        MaternalHaplotypeIDs.push_back(temp_mat);                                               /* push back row */
-        linenumbera++;
-    }
-    /* need to loop through population */
-    double Number_Haplotypes [generations];
-    for(int i = 0; i < (generations); i++){Number_Haplotypes[i] = 0.0;}                         /* Zero out first */
-    for(int i = 0; i < PaternalHaplotypeIDs[0].size(); i++)                                   /* Loop acros haplotypes */
-    {
-        for(int j = 0; j < generations; j++)
-        {
-            
-            vector < int > temphaps;
-            for(int k = 0; k < idgeneration.size(); k++)
-            {
-                int bin = idgeneration[k];
-                if(bin == j)
-                {
-                    temphaps.push_back(PaternalHaplotypeIDs[k][i]);
-                    temphaps.push_back(MaternalHaplotypeIDs[k][i]);
-                }
-            }
-            sort(temphaps.begin(),temphaps.end() );                                             /* Sort by haplotype ID */
-            temphaps.erase(unique(temphaps.begin(),temphaps.end()),temphaps.end());             /* keeps only unique ones */
-            Number_Haplotypes[j] += temphaps.size();
-        }
-    }
-    for(int i = 0; i < generations; i++)
-    {
-        Number_Haplotypes[i] = Number_Haplotypes[i] / PaternalHaplotypeIDs[0].size();           /* Compute Average */
-    }
-    /* Summary Statistics for QTL's across generations */
-    fstream checkSumQTL; checkSumQTL.open(outputfile, std::fstream::out | std::fstream::trunc); checkSumQTL.close();
-    int Founder_Quan_Total[generations];                                        /* Total QTL from founder generation */
-    int Founder_Quan_Lost[generations];                                         /* Lost QTL from founder generation */
-    int Mutations_Quan_Total[generations];                                      /* Total New mutations */
-    int Mutations_Quan_Lost[generations];                                       /* Lost New mutations */
-    int Founder_Fit_Total[generations];                                         /* Total QTL from founder generation */
-    int Founder_Fit_Lost[generations];                                          /* Lost QTL from founder generation */
-    int Mutations_Fit_Total[generations];                                       /* Total new mutations */
-    int Mutations_Fit_Lost[generations];                                        /* Lost new mutations */
-    for(int i = 0; i < generations; i++)
-    {
-        Founder_Quan_Total[i] = 0; Founder_Quan_Lost[i] = 0; Mutations_Quan_Total[i] = 0; Mutations_Quan_Lost[i] = 0;
-        Founder_Fit_Total[i] = 0; Founder_Fit_Lost[i] = 0; Mutations_Fit_Total[i] = 0; Mutations_Fit_Lost[i] = 0;
-    }
-    int All_QTL_Gen;
-    string Type;
-    string Freq_Gen;
-    /* Import file and put each row into a vector */
-    vector <string> numbers;
-    line;
-    int linenumberqtl = 0;
-    ifstream infile5;
-    infile5.open(inputfileqtl);
-    if(infile5.fail()){cout << "Error Opening File\n";}
-    while (getline(infile5,line))
-    {
-        if(linenumberqtl > 0)
-        {
-            size_t pos = line.find(" ",0); line.erase(0, pos + 1);
-            pos = line.find(" ",0); line.erase(0, pos + 1);
-            pos = line.find(" ",0); line.erase(0, pos + 1);
-            pos = line.find(" ",0); Type = line.substr(0,pos); line.erase(0, pos + 1);
-            pos = line.find(" ",0); All_QTL_Gen = stoi(line.substr(0,pos)); line.erase(0, pos + 1);
-            Freq_Gen = line;
-            for(int i = 0; i < generations; i++)
-            {
-                size_t pos = Freq_Gen.find("_",0);
-                double freq = stod(Freq_Gen.substr(0,pos));
-                Freq_Gen.erase(0,pos+1);
-                if(Type == "2" && All_QTL_Gen == 0)
-                {
-                    if(freq > 0.0 && freq < 1.0){Founder_Quan_Total[i] += 1;}
-                    if(freq == 0.0 || freq == 1.0){Founder_Quan_Lost[i] += 1;}
-                }
-                if(Type == "2" && All_QTL_Gen > 0)
-                {
-                    if(freq > 0.0 && freq < 1.0)
-                    {
-                        if(i >= All_QTL_Gen){Mutations_Quan_Total[i] += 1;}
-                        if(i < All_QTL_Gen){Mutations_Quan_Total[i] += 0;}
-                    }
-                    if(freq == 0.0 || freq == 1.0)
-                    {
-                        if(i >= All_QTL_Gen){Mutations_Quan_Lost[i] += 1;}
-                        if(i < All_QTL_Gen){Mutations_Quan_Lost[i] += 0;}
-                    }
-                }
-                if((Type == "4" || Type == "5") && All_QTL_Gen == 0)
-                {
-                    if(freq > 0.0 && freq < 1.0){Founder_Fit_Total[i] += 1;}
-                    if(freq == 0.0 || freq == 1.0){Founder_Fit_Lost[i] += 1;}
-                }
-                if((Type == "4" || Type == "5") && All_QTL_Gen > 0)
-                {
-                    if(freq > 0.0 && freq < 1.0)
-                    {
-                        if(i >= All_QTL_Gen){Mutations_Fit_Total[i] += 1;}
-                        if(i < All_QTL_Gen){Mutations_Fit_Total[i] += 0;}
-                    }
-                    if(freq == 0.0 || freq == 1.0)
-                    {
-                        if(i >= All_QTL_Gen){Mutations_Fit_Lost[i] += 1;}
-                        if(i < All_QTL_Gen){Mutations_Fit_Lost[i] += 0;}
-                    }
-                }
-            }
-        }
-        linenumberqtl++;
-    }
-    for(int i = 0; i < generations; i++)
-    {
-        std::ofstream output5(outputfile, std::ios_base::app | std::ios_base::out);
-        if(i == 0)
-        {
-            output5 << "Generation Quant_Founder_Start Quant_Founder_Lost Mutation_Quan_Total Mutation_Quan_Lost ";
-            output5 << "Additive_Var Dominance_Var Fit_Founder_Start Fit_Founder_Lost Mutation_Fit_Total Mutation_Fit_Lost ";
-            output5 << "Avg_Haplotypes_Window ProgenyDiedFitness" << endl;
-        }
-        output5 << i << " " << Founder_Quan_Total[i] << " " << Founder_Quan_Lost[i] << " " << Mutations_Quan_Total[i] << " ";
-        output5 << Mutations_Quan_Lost[i] <<" "<< tempaddvar[i] <<" "<< tempdomvar[i] <<" "<< Founder_Fit_Total[i] <<" "<< Founder_Fit_Lost[i] <<" ";
-        output5 << Mutations_Fit_Total[i] << " " << Mutations_Fit_Lost[i] << " " << Number_Haplotypes[i] << " " << tempdeadfit[i] << endl;
-    }
-}
-////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////
-/////////////////////////     FUNCTION 8       /////////////////////////
-////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////
-/* Generate dataframe Summary Statistics */
-void generatessummarydf(string inputfilehap, string outputfile, int generations, vector < double > const &tempexphet)
-{
-    vector < double > generationcount(generations,0);
-    vector < double > generationvalues;
-    /* Inbreeding Summaries */
-    vector < double > pedigreefvalues; vector < double > pedigreefmean(generations,0.0); vector < double > pedigreefsd(generations,0.0);
-    vector < double > genomicfvalues; vector < double > genomicfmean(generations,0.0); vector < double > genomicfsd(generations,0.0);
-    vector < double > h1fvalues; vector < double > h1fmean(generations,0.0); vector < double > h1fsd(generations,0.0);
-    vector < double > h2fvalues; vector < double > h2fmean(generations,0.0); vector < double > h2fsd(generations,0.0);
-    vector < double > h3fvalues; vector < double > h3fmean(generations,0.0); vector < double > h3fsd(generations,0.0);
-    vector < double > homozygovalues; vector < double > homozygomean(generations,0.0); vector < double > homozygosd(generations,0.0);
-    vector < double > proprohvalues; vector < double > proprohmean(generations,0.0); vector < double > proprohsd(generations,0.0);
-    /* Fitness Summaries */
-    vector < double > fitnessvalues; vector < double > fitnessmean(generations,0.0); vector < double > fitnesssd(generations,0.0);
-    vector < double > homolethalvalues; vector < double > homolethalmean(generations,0.0); vector < double > homolethalsd(generations,0.0);
-    vector < double > hetelethalvalues; vector < double > hetelethalmean(generations,0.0); vector < double > hetelethalsd(generations,0.0);
-    vector < double > homosublethalvalues; vector < double > homosublethalmean(generations,0.0); vector < double > homosublethalsd(generations,0.0);
-    vector < double > hetesublethalvalues; vector < double > hetesublethalmean(generations,0.0); vector < double > hetesublethalsd(generations,0.0);
-    vector < double > lethalequivvalues; vector < double > lethalequivmean(generations,0.0); vector < double > lethalequivsd(generations,0.0);
-    /* Performance Summaries */
-    vector < double > phenovalues; vector < double > phenomean(generations,0.0); vector < double > phenosd(generations,0.0);
-    vector < double > ebvvalues; vector < double > ebvmean(generations,0.0); vector < double > ebvsd(generations,0.0);
-    vector < double > gvvalues; vector < double > gvmean(generations,0.0); vector < double > gvsd(generations,0.0);
-    vector < double > bvvalues; vector < double > bvmean(generations,0.0); vector < double > bvsd(generations,0.0);
-    vector < double > ddvalues; vector < double > ddmean(generations,0.0); vector < double > ddsd(generations,0.0);
-    vector < double > resvalues; vector < double > resmean(generations,0.0); vector < double > ressd(generations,0.0);
-    /* Read through and fill vector */
-    string line;
-    ifstream infile22;
-    infile22.open(inputfilehap);
-    if(infile22.fail()){cout << "Error Opening File\n";}
-    while (getline(infile22,line))
-    {
-        size_t pos = line.find(" ", 0); line.erase(0, pos + 1);                                                 /* Don't need animal ID so skip */
-        pos = line.find(" ",0); line.erase(0,pos + 1);                                                          /* Don't need dam ID so skip*/
-        pos = line.find(" ",0); line.erase(0,pos + 1);                                                          /* Don't need sire ID so skip*/
-        pos = line.find(" ",0); line.erase(0,pos + 1);                                                          /* Don't need sex so skip*/
-        pos = line.find(" ",0); generationvalues.push_back(atoi((line.substr(0,pos)).c_str())); line.erase(0,pos + 1);   /* Grab Generation */
-        pos = line.find(" ",0); line.erase(0,pos + 1);                                                          /* Don't need age so skip*/
-        pos = line.find(" ",0); line.erase(0,pos + 1);                                                          /* Don't need progeny number so skip*/
-        pos = line.find(" ",0); line.erase(0,pos + 1);                                                          /* Don't need progeny dead so skip*/
-        pos = line.find(" ",0); pedigreefvalues.push_back(atof((line.substr(0,pos)).c_str())); line.erase(0,pos + 1);    /* Grab Pedigree f */
-        pos = line.find(" ",0); genomicfvalues.push_back(atof((line.substr(0,pos)).c_str())); line.erase(0,pos + 1);     /* Grab Genomic f */
-        pos = line.find(" ",0); h1fvalues.push_back(atof((line.substr(0,pos)).c_str())); line.erase(0,pos + 1);          /* Grab h1 f */
-        pos = line.find(" ",0); h2fvalues.push_back(atof((line.substr(0,pos)).c_str())); line.erase(0,pos + 1);          /* Grab h2 f */
-        pos = line.find(" ",0); h3fvalues.push_back(atof((line.substr(0,pos)).c_str())); line.erase(0,pos + 1);          /* Grab h3 f */
-        pos = line.find(" ",0); homolethalvalues.push_back(atof((line.substr(0,pos)).c_str())); line.erase(0,pos + 1);  /* Grab homozygous lethal */
-        pos = line.find(" ",0); hetelethalvalues.push_back(atof((line.substr(0,pos)).c_str())); line.erase(0,pos + 1);  /* Grab heterzygous lethal */
-        pos = line.find(" ",0); homosublethalvalues.push_back(atof((line.substr(0,pos)).c_str())); line.erase(0,pos + 1);   /* Grab homozygous sublethal */
-        pos = line.find(" ",0); hetesublethalvalues.push_back(atof((line.substr(0,pos)).c_str())); line.erase(0,pos + 1);   /* Grab heterzygous sublethal */
-        pos = line.find(" ",0); lethalequivvalues.push_back(atof((line.substr(0,pos)).c_str())); line.erase(0,pos + 1);     /* Grab Lethal Equivalents */
-        pos = line.find(" ",0); homozygovalues.push_back(atof((line.substr(0,pos)).c_str())); line.erase(0,pos + 1);        /* Grab homozygosity */
-        pos = line.find(" ",0); proprohvalues.push_back(atof((line.substr(0,pos)).c_str())); line.erase(0,pos + 1);         /* Grab proportion ROH */
-        pos = line.find(" ",0); fitnessvalues.push_back(atof((line.substr(0,pos)).c_str())); line.erase(0,pos + 1);        /* Grab fitness */
-        pos = line.find(" ",0); phenovalues.push_back(atof((line.substr(0,pos)).c_str())); line.erase(0,pos + 1);          /* Grab phenotype */
-        pos = line.find(" ",0); ebvvalues.push_back(atof((line.substr(0,pos)).c_str())); line.erase(0,pos + 1);            /* Grab ebv */
-        pos = line.find(" ",0); line.erase(0,pos + 1);                                                          /* Don't need accuracy so skip*/
-        pos = line.find(" ",0); gvvalues.push_back(atof((line.substr(0,pos)).c_str())); line.erase(0,pos + 1);            /* Grab gv */
-        pos = line.find(" ",0); bvvalues.push_back(atof((line.substr(0,pos)).c_str())); line.erase(0,pos + 1);            /* Grab bv */
-        pos = line.find(" ",0); ddvalues.push_back(atof((line.substr(0,pos)).c_str())); line.erase(0,pos + 1);            /* Grab dd */
-        pos = line.find(" ",0); resvalues.push_back(atof((line.substr(0,pos)).c_str())); line.erase(0,pos + 1);           /* Grab residuals */
-    }
-    /* Calculate Mean */
-    for(int i = 0; i < generationvalues.size(); i++)
-    {
-        /* Inbreeding Summary */
-        generationcount[generationvalues[i]] += 1;
-        pedigreefmean[generationvalues[i]] += pedigreefvalues[i];
-        genomicfmean[generationvalues[i]] += genomicfvalues[i];
-        h1fmean[generationvalues[i]] += h1fvalues[i];
-        h2fmean[generationvalues[i]] += h2fvalues[i];
-        h3fmean[generationvalues[i]] += h3fvalues[i];
-        homozygomean[generationvalues[i]] += homozygovalues[i];
-        proprohmean[generationvalues[i]] += proprohvalues[i];
-        fitnessmean[generationvalues[i]] += fitnessvalues[i];
-        homolethalmean[generationvalues[i]] += homolethalvalues[i];
-        hetelethalmean[generationvalues[i]] += hetelethalvalues[i];
-        homosublethalmean[generationvalues[i]] += homosublethalvalues[i];
-        hetesublethalmean[generationvalues[i]] += hetesublethalvalues[i];
-        lethalequivmean[generationvalues[i]] += lethalequivvalues[i];
-        /* Performance Summary */
-        phenomean[generationvalues[i]] += phenovalues[i];
-        ebvmean[generationvalues[i]] += ebvvalues[i];
-        gvmean[generationvalues[i]] += gvvalues[i];
-        bvmean[generationvalues[i]] += bvvalues[i];
-        ddmean[generationvalues[i]] += ddvalues[i];
-        resmean[generationvalues[i]] += resvalues[i];
-    }
-    for(int i = 0; i < generationcount.size(); i++)
-    {
-        /* Inbreeding Summary */
-        pedigreefmean[i] =  pedigreefmean[i] / generationcount[i];
-        genomicfmean[i] = genomicfmean[i] / generationcount[i];
-        h1fmean[i] = h1fmean[i] / generationcount[i];
-        h2fmean[i] = h2fmean[i] / generationcount[i];
-        h3fmean[i] = h3fmean[i] / generationcount[i];
-        homozygomean[i] = homozygomean[i] / generationcount[i];
-        if(proprohmean[i] != 0){proprohmean[i] = proprohmean[i] / double(generationcount[i]);}
-        if(proprohmean[i] == 0){proprohmean[i] = 0.0;}
-        fitnessmean[i] = fitnessmean[i] / generationcount[i];
-        homolethalmean[i] = homolethalmean[i] / generationcount[i];
-        hetelethalmean[i] = hetelethalmean[i] / generationcount[i];
-        homosublethalmean[i] = homosublethalmean[i] / generationcount[i];
-        hetesublethalmean[i] = hetesublethalmean[i] / generationcount[i];
-        lethalequivmean[i] = lethalequivmean[i] / generationcount[i];
-        /* Performance Summary */
-        phenomean[i] = phenomean[i] / generationcount[i];
-        ebvmean[i] = ebvmean[i] / generationcount[i];
-        gvmean[i] = gvmean[i] / generationcount[i];
-        bvmean[i] = bvmean[i] / generationcount[i];
-        ddmean[i] = ddmean[i] / generationcount[i];
-        resmean[i] = resmean[i] / generationcount[i];
-    }
-    /* Calculate Variance */
-    for(int i = 0; i < generationvalues.size(); i++)
-    {
-        /* Inbreeding Summary */
-        pedigreefsd[generationvalues[i]] += ((pedigreefvalues[i]-pedigreefmean[generationvalues[i]]) * (pedigreefvalues[i]-pedigreefmean[generationvalues[i]]));
-        genomicfsd[generationvalues[i]] += ((genomicfvalues[i] - genomicfmean[generationvalues[i]]) * (genomicfvalues[i] - genomicfmean[generationvalues[i]]));
-        h1fsd[generationvalues[i]] += ((h1fvalues[i] - h1fmean[generationvalues[i]]) * (h1fvalues[i] - h1fmean[generationvalues[i]]));
-        h2fsd[generationvalues[i]] += ((h2fvalues[i] - h2fmean[generationvalues[i]]) * (h2fvalues[i] - h2fmean[generationvalues[i]]));
-        h3fsd[generationvalues[i]] += ((h3fvalues[i] - h3fmean[generationvalues[i]]) * (h3fvalues[i] - h3fmean[generationvalues[i]]));
-        homozygosd[generationvalues[i]] += ((homozygovalues[i] - homozygomean[generationvalues[i]]) * (homozygovalues[i] - homozygomean[generationvalues[i]]));
-        proprohsd[generationvalues[i]] += ((proprohvalues[i] - proprohmean[generationvalues[i]]) * (proprohvalues[i] - proprohmean[generationvalues[i]]));
-        fitnesssd[generationvalues[i]] += ((fitnessvalues[i] - fitnessmean[generationvalues[i]]) * (fitnessvalues[i] - fitnessmean[generationvalues[i]]));
-        homolethalsd[generationvalues[i]] +=((homolethalvalues[i]-homolethalmean[generationvalues[i]])*(homolethalvalues[i]-homolethalmean[generationvalues[i]]));
-        hetelethalsd[generationvalues[i]] +=((hetelethalvalues[i]-hetelethalmean[generationvalues[i]])*(hetelethalvalues[i]-hetelethalmean[generationvalues[i]]));
-        homosublethalsd[generationvalues[i]] += ((homosublethalvalues[i]-homosublethalmean[generationvalues[i]]) * (homosublethalvalues[i]-homosublethalmean[generationvalues[i]]));
-        hetesublethalsd[generationvalues[i]] += ((hetesublethalvalues[i]-hetesublethalmean[generationvalues[i]]) * (hetesublethalvalues[i]-hetesublethalmean[generationvalues[i]]));
-        lethalequivsd[generationvalues[i]] += ((lethalequivvalues[i]-lethalequivmean[generationvalues[i]]) * (lethalequivvalues[i]-lethalequivmean[generationvalues[i]]));
-        /* Performance Summary */
-        phenosd[generationvalues[i]] += ((phenovalues[i] - phenomean[generationvalues[i]]) * (phenovalues[i] - phenomean[generationvalues[i]]));
-        ebvsd[generationvalues[i]] += ((ebvvalues[i] - ebvmean[generationvalues[i]]) * (ebvvalues[i] - ebvmean[generationvalues[i]]));
-        gvsd[generationvalues[i]] += ((gvvalues[i] - gvmean[generationvalues[i]]) * (gvvalues[i] - gvmean[generationvalues[i]]));
-        bvsd[generationvalues[i]] += ((bvvalues[i] - bvmean[generationvalues[i]]) * (bvvalues[i] - bvmean[generationvalues[i]]));
-        ddsd[generationvalues[i]] += ((ddvalues[i] - ddmean[generationvalues[i]]) * (ddvalues[i] - ddmean[generationvalues[i]]));
-        ressd[generationvalues[i]] += ((resvalues[i] - resmean[generationvalues[i]]) * (resvalues[i] - resmean[generationvalues[i]]));
-    }
-    for(int i = 0; i < generationcount.size(); i++)
-    {
-        /* Inbreeding Summary */
-        pedigreefsd[i] = pedigreefsd[i] / double(generationcount[i] -1);
-        genomicfsd[i] = genomicfsd[i] / double(generationcount[i] -1);
-        h1fsd[i] = h1fsd[i] / double(generationcount[i] -1);
-        h2fsd[i] = h2fsd[i] / double(generationcount[i] -1);
-        h3fsd[i] = h3fsd[i] / double(generationcount[i] -1);
-        if(homozygosd[i] != 0){homozygosd[i] = homozygosd[i] / double(generationcount[i] -1);}
-        if(homozygosd[i] == 0){homozygosd[i] = 0.0;}
-        fitnesssd[i] = fitnesssd[i] / double(generationcount[i] -1);
-        homolethalsd[i] = homolethalsd[i] / double(generationcount[i] -1);
-        hetelethalsd[i] = hetelethalsd[i] / double(generationcount[i] -1);
-        homosublethalsd[i] = homosublethalsd[i] / double(generationcount[i] -1);
-        hetesublethalsd[i] = hetesublethalsd[i] / double(generationcount[i] -1);
-        lethalequivsd[i] = lethalequivsd[i] / double(generationcount[i] -1);
-        /* Performance Summary */
-        phenosd[i] = phenosd[i] / double(generationcount[i] -1);
-        ebvsd[i] = ebvsd[i] / double(generationcount[i] -1);
-        gvsd[i] = gvsd[i] / double(generationcount[i] -1);
-        bvsd[i] = bvsd[i] / double(generationcount[i] -1);
-        ddsd[i] = ddsd[i] / double(generationcount[i] -1);
-        ressd[i] = ressd[i] / double(generationcount[i] -1);
-    }
-    string outfileinbreeding = outputfile + "_Inbreeding";
-    string outfileperformance = outputfile + "_Performance";
-    fstream checkoutinbreeding; checkoutinbreeding.open(outfileinbreeding, std::fstream::out | std::fstream::trunc); checkoutinbreeding.close();
-    fstream checkoutperformance; checkoutperformance.open(outfileperformance, std::fstream::out | std::fstream::trunc); checkoutperformance.close();
-    /* output inbreeding */
-    for(int i = 0; i < generations; i++)
-    {
-        cout.setf(ios::fixed);
-        std::ofstream output(outfileinbreeding, std::ios_base::app | std::ios_base::out);
-        if(i == 0)
-        {
-            output << "Generation ped_f gen_f h1_f h2_f h3_f homozy PropROH ExpHet fitness homozlethal hetezlethal homozysublethal hetezsublethal lethalequiv" << endl;
-        }
-        output << i << " ";
-        output << setprecision(4) << pedigreefmean[i] << "(" << pedigreefsd[i] << ") ";
-        output << setprecision(4) << genomicfmean[i] << "(" << genomicfsd[i] << ") ";
-        output << setprecision(4) << h1fmean[i] << "(" << h1fsd[i] << ") ";
-        output << setprecision(4) << h2fmean[i] << "(" << h2fsd[i] << ") ";
-        output << setprecision(4) << h3fmean[i] << "(" << h3fsd[i] << ") ";
-        output << setprecision(4) << homozygomean[i] << "(" << homozygosd[i] << ") ";
-        output << setprecision(4) << proprohmean[i] << "(" << proprohsd[i] << ") ";
-        output << setprecision(4) << tempexphet[i] << " ";
-        output << setprecision(4) << fitnessmean[i] << "(" << fitnesssd[i] << ") ";
-        output << setprecision(4) << homolethalmean[i] << "(" << homolethalsd[i] << ") ";
-        output << setprecision(4) << hetelethalmean[i] << "(" << hetelethalsd[i] << ") ";
-        output << setprecision(4) << homosublethalmean[i] << "(" << homosublethalsd[i] << ") ";
-        output << setprecision(4) << hetesublethalmean[i] << "(" << hetesublethalsd[i] << ") ";
-        output << setprecision(4) << lethalequivmean[i] << "(" << lethalequivsd[i] << ")" << endl;
-        cout.unsetf(ios::fixed);
-    }
-    /* output performance */
-    for(int i = 0; i < generations; i++)
-    {
-        cout.setf(ios::fixed);
-        std::ofstream output1(outfileperformance, std::ios_base::app | std::ios_base::out);
-        if(i == 0)
-        {
-            output1 << "Generation phen ebv gv bv dd res" << endl;
-        }
-        output1 << i << " ";
-        output1 << setprecision(4) << phenomean[i]  << "(" << phenosd[i] << ") ";
-        output1 << setprecision(4) << ebvmean[i]  << "(" << ebvsd[i] << ") ";
-        output1 << setprecision(4) << gvmean[i]  << "(" << gvsd[i] << ") ";
-        output1 << setprecision(4) << bvmean[i]  << "(" << bvsd[i] << ") ";
-        output1 << setprecision(4) << ddmean[i]  << "(" << ddsd[i] << ") ";
-        output1 << setprecision(4) << resmean[i]  << "(" << ressd[i] << ")" << endl;
-        cout.unsetf(ios::fixed);
-    }
-    
 }
 ////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////

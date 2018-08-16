@@ -14,6 +14,8 @@
 #include "Animal.h"
 #include "ParameterClass.h"
 #include "Genome_ROH.h"
+#include "OutputFiles.h"
+
 
 using namespace std;
 
@@ -54,15 +56,17 @@ Ani_ROH::Ani_ROH(std::string rohchrome, std::string ws, std::string we, std::str
 ROH_Index::~ROH_Index(){}                   /* ROH_Index*/
 Ani_ROH::~Ani_ROH(){}                       /* Ani_ROH */
 
-
-void Genome_ROH_Summary(parameters &SimParameters, vector <Animal> &population,string Marker_Map, string Summary_ROHGenome_Length, string Summary_ROHGenome_Freq, int Gen, ostream& logfileloc)
+////////////////////////////
+// Calculate SNP ROH Freq //
+////////////////////////////
+void Genome_ROH_Summary(parameters &SimParameters, outputfiles &OUTPUTFILES, vector <Animal> &population,int Gen, ostream& logfileloc)
 {
     /* Read in map file don't need to know how many SNP are in the file */
     vector <string> numbers;
     /* Import file and put each row into a vector */
     string line;
     ifstream infile;
-    infile.open(Marker_Map.c_str());
+    infile.open(OUTPUTFILES.getloc_Marker_Map().c_str());
     if(infile.fail()){cout << "Error Opening map File\n"; exit (EXIT_FAILURE);}
     while (getline(infile,line)){numbers.push_back(line);}        /* Stores in vector and each new line push back to next space */
     vector < int > chr;         /* stores chromosome in vector */
@@ -234,7 +238,7 @@ void Genome_ROH_Summary(parameters &SimParameters, vector <Animal> &population,s
     numbers.clear();
     /* Import file and put each row into a vector */
     ifstream infile1;
-    infile1.open(Summary_ROHGenome_Length.c_str());
+    infile1.open(OUTPUTFILES.getloc_Summary_ROHGenome_Length().c_str());
     if(infile1.fail()){cout << "Error Opening map File\n"; exit (EXIT_FAILURE);}
     while (getline(infile1,line)){numbers.push_back(line);}        /* Stores in vector and each new line push back to next space */
     /* now update numbers with new generation and then output back out */
@@ -248,15 +252,17 @@ void Genome_ROH_Summary(parameters &SimParameters, vector <Animal> &population,s
         }
         if(i > 0){string outstring = numbers[i] + " " + automean_median[i-1]; numbers[i] = outstring;}
     }
-    fstream clearlength; clearlength.open(Summary_ROHGenome_Length.c_str(), std::fstream::out | std::fstream::trunc); clearlength.close();
+    fstream clearlength;
+    clearlength.open(OUTPUTFILES.getloc_Summary_ROHGenome_Length().c_str(), std::fstream::out | std::fstream::trunc);
+    clearlength.close();
     ofstream outputrohlength;
-    outputrohlength.open(Summary_ROHGenome_Length.c_str());
+    outputrohlength.open(OUTPUTFILES.getloc_Summary_ROHGenome_Length().c_str());
     for(int i = 0; i < numbers.size(); i++){outputrohlength << numbers[i] << endl;}
     outputrohlength.close();
     numbers.clear();
     /* Import file and put each row into a vector */
     ifstream infile2;
-    infile2.open(Summary_ROHGenome_Freq.c_str());
+    infile2.open(OUTPUTFILES.getloc_Summary_ROHGenome_Freq().c_str());
     if(infile2.fail()){cout << "Error Opening map File\n"; exit (EXIT_FAILURE);}
     while (getline(infile2,line)){numbers.push_back(line);}        /* Stores in vector and each new line push back to next space */
     /* now update numbers with new generation and then output back out */
@@ -274,21 +280,25 @@ void Genome_ROH_Summary(parameters &SimParameters, vector <Animal> &population,s
             string outstring = numbers[i] + " " + tempgen; numbers[i] = outstring;
         }
     }
-    fstream clearfreq; clearfreq.open(Summary_ROHGenome_Freq.c_str(), std::fstream::out | std::fstream::trunc); clearfreq.close();
+    fstream clearfreq;
+    clearfreq.open(OUTPUTFILES.getloc_Summary_ROHGenome_Freq().c_str(), std::fstream::out | std::fstream::trunc);
+    clearfreq.close();
     ofstream outputrohfreq;
-    outputrohfreq.open(Summary_ROHGenome_Freq.c_str());
+    outputrohfreq.open(OUTPUTFILES.getloc_Summary_ROHGenome_Freq().c_str());
     for(int i = 0; i < numbers.size(); i++){outputrohfreq << numbers[i] << endl;}
     outputrohfreq.close();
 }
-
-void Proportion_ROH(parameters &SimParameters, vector <Animal> &population,string Marker_Map, ostream& logfileloc)
+///////////////////////////////////////////////////////////////
+// Calculate Proportion of Genome in ROH for each individual //
+///////////////////////////////////////////////////////////////
+void Proportion_ROH(parameters &SimParameters, vector <Animal> &population,outputfiles &OUTPUTFILES, ostream& logfileloc)
 {
     /* Read in map file don't need to know how many SNP are in the file */
     vector <string> numbers;
     /* Import file and put each row into a vector */
     string line;
     ifstream infile;
-    infile.open(Marker_Map.c_str());
+    infile.open(OUTPUTFILES.getloc_Marker_Map().c_str());
     if(infile.fail()){cout << "Error Opening map File\n"; exit (EXIT_FAILURE);}
     while (getline(infile,line)){numbers.push_back(line);}        /* Stores in vector and each new line push back to next space */
     vector < int > chr;         /* stores chromosome in vector */
@@ -311,6 +321,7 @@ void Proportion_ROH(parameters &SimParameters, vector <Animal> &population,strin
         {
             if(chr[i] == chr[j])
             {
+                if(j >= chr.size()){break;}
                 int temp = position[j] - position[i];
                 if(temp > (SimParameters.getmblengthroh()*1000000))
                 {
@@ -320,14 +331,15 @@ void Proportion_ROH(parameters &SimParameters, vector <Animal> &population,strin
                     break;
                 }
                 if(temp <= (SimParameters.getmblengthroh()*1000000)){j++;}
+                
             }
             if(chr[i] != chr[j]){break;}
         }
     }
+    //cout << roh_index.size() << ": " << roh_index[roh_index.size()-1].getStPos() << " " << roh_index[roh_index.size()-1].getEnPos() << endl;
     /* Figure out full genome length */
     double genome_length = 0.0;
     for(int i = 0; i < SimParameters.getChr(); i++){genome_length += (SimParameters.get_ChrLength())[i];}
-    #pragma omp parralel for
     for(int i = 0; i < population.size(); i++)
     {
         if(population[i].getAge() == 1)
@@ -335,47 +347,66 @@ void Proportion_ROH(parameters &SimParameters, vector <Animal> &population,strin
             string temp = population[i].getMarker();
             std::replace(temp.begin(),temp.end(),'3','1');                              /* Convert heterozygotes to 1 */
             std::replace(temp.begin(),temp.end(),'4','1');                              /* Convert heterozygotes to 1 */
-            vector < int > indchr_roh; vector < int > indstr_roh; vector < int > indend_roh; vector < int > rohlength;
-            for(int i = 0; i < roh_index.size(); i++)                                           /* loop across roh indexes */
+            vector < int > indchr_roh; vector < int > indstr_roh; vector < int > indend_roh; vector < int > rohindex;
+            for(int j = 0; j < roh_index.size(); j++)                                           /* loop across roh indexes */
             {
                 /* check to see if a 1 exists; if so then not a ROH */
-                size_t found =  (temp.substr(roh_index[i].getStInd(),roh_index[i].getNumSNP())).find("1");
+                size_t found =  (temp.substr(roh_index[j].getStInd(),roh_index[j].getNumSNP())).find("1");
                 /* if not found than is in an ROH  */
                 if (found == string::npos)
                 {
-                    indchr_roh.push_back(roh_index[i].getChr());
-                    indstr_roh.push_back(roh_index[i].getStPos());
-                    indend_roh.push_back(roh_index[i].getEnPos());
+                    indchr_roh.push_back(roh_index[j].getChr());
+                    indstr_roh.push_back(roh_index[j].getStPos());
+                    indend_roh.push_back(roh_index[j].getEnPos());
+                    rohindex.push_back(j);
                 }
             }
+            //for(int j = 0; j < indstr_roh.size(); j++){cout << rohindex[j] << " -- " <<  indchr_roh[j] << ": " << indstr_roh[j] << " to " << indend_roh[j] << endl;}
+            //cout << endl << endl;
             int vector_size = indstr_roh.size();
             if(indstr_roh.size() > 1)
             {
                 string stop = "GO";
-                int i = 1;
+                int j = 1;
                 while(stop == "GO")
                 {
-                    /* If current ROH is within previous one then remove and replace end with current row */
-                    if(indchr_roh[i - 1] == indchr_roh[i] && indstr_roh[i] >= indstr_roh[i-1] && indstr_roh[i] <= indend_roh[i-1])
+                    if(indchr_roh[j - 1] == indchr_roh[j] && indstr_roh[j] >= indstr_roh[j-1] && indstr_roh[j] <= indend_roh[j-1] && (rohindex[j - 1]+1) != rohindex[j])
                     {
-                        indend_roh[i-1] = indend_roh[i];            /* replace row before it with end position */
-                        indchr_roh.erase(indchr_roh.begin() + i);   /* delete that row from indchr_roh */
-                        indstr_roh.erase(indstr_roh.begin() + i);   /* delete that row from indchr_roh */
-                        indend_roh.erase(indend_roh.begin() + i);   /* delete that row from indchr_roh */
+                        //for(int j = 0; j < 15; j++){cout << rohindex[j] << " -- " <<  indchr_roh[j] << ": " << indstr_roh[j] << " to " << indend_roh[j] << endl;}
+                        cout << "Incorrect Sequence when calculating ROH. E-mail developer!" << endl; exit (EXIT_FAILURE);
+                    }
+                    /* If current ROH is within previous one then remove and replace end with current row */
+                    if(indchr_roh[j - 1] == indchr_roh[j] && indstr_roh[j] >= indstr_roh[j-1] && indstr_roh[j] <= indend_roh[j-1] && (rohindex[j - 1]+1) == rohindex[j])
+                    {
+                        indend_roh[j-1] = indend_roh[j];            /* replace row before it with end position */
+                        rohindex[j-1] = rohindex[j];                /* replace index with current one */
+                        indchr_roh.erase(indchr_roh.begin() + j);   /* delete that row from indchr_roh */
+                        indstr_roh.erase(indstr_roh.begin() + j);   /* delete that row from indchr_roh */
+                        indend_roh.erase(indend_roh.begin() + j);   /* delete that row from indchr_roh */
+                        rohindex.erase(rohindex.begin() + j);       /* delete that row from rohindex */
                         vector_size = vector_size - 1;
+                        
+                        //for(int j = 0; j < 5; j++){cout << rohindex[j] << " -- " <<  indchr_roh[j] << ": " << indstr_roh[j] << " to " << indend_roh[j] << endl;}
+                        //cout << endl << endl;
                     }
                     /* Not within each other so skip and go onto next one */
-                    if(indchr_roh[i - 1] != indchr_roh[i] || indstr_roh[i] < indstr_roh[i-1] || indstr_roh[i] > indend_roh[i-1])
+                    if(indchr_roh[j - 1] != indchr_roh[j] || indstr_roh[j] < indstr_roh[j-1] || indstr_roh[j] > indend_roh[j-1] || (rohindex[j - 1]+1) != rohindex[j] && j < vector_size)
                     {
-                        i = i + 1;
+                        j = j + 1;
                     }
                     /* Once it reaches the last one stop */
-                    if(i == vector_size){stop = "Kill";}
+                    if(j == vector_size){stop = "Kill";}
                 }
             }
             double total_length = 0.0;
-            for(int i = 0; i < indchr_roh.size(); i++){total_length += double(indend_roh[i] - indstr_roh[i]);}
+            for(int j = 0; j < indchr_roh.size(); j++){total_length += double(indend_roh[j] - indstr_roh[j]);}
             population[i].UpdatepropROH(total_length / double(genome_length));
+            if(total_length > genome_length)
+            {
+                //for(int j = 0; j < indstr_roh.size(); j++){cout << rohindex[j] << " -- " <<  indchr_roh[j] << ": " << indstr_roh[j] << " to " << indend_roh[j] << endl;}
+                //cout << indstr_roh.size() << " " << total_length << " " << genome_length << endl << endl;
+                cout << "Incorrect Value when calculating ROH. E-mail developer!" << endl; exit (EXIT_FAILURE);
+            }
         }
     }
 }
@@ -389,8 +420,16 @@ void Proportion_ROH(parameters &SimParameters, vector <Animal> &population,strin
 /****************************************************************/
 /* Calculate LD decay by binning into windows across the genome */
 /****************************************************************/
-void ld_decay_estimator(string outputfile, string mapfile, string lineone, vector < string > const &genotypes)
+void ld_decay_estimator(outputfiles &OUTPUTFILES, vector <Animal> &population, string lineone)
 {
+    /***********************************************/
+    /* Grab the animals that are currently progeny */
+    /***********************************************/
+    vector < string > markergenotypes;
+    for(int i = 0; i < population.size(); i++)
+    {
+        if(population[i].getAge() == 1){markergenotypes.push_back(population[i].getMarker());}
+    }
     mt19937 gen(time(0));
     /* Vector to store LD information */
     vector < int > ld_block_start;
@@ -420,7 +459,7 @@ void ld_decay_estimator(string outputfile, string mapfile, string lineone, vecto
     int linenumber = 0;
     ifstream infile1;
     string line;
-    infile1.open(mapfile.c_str());
+    infile1.open(OUTPUTFILES.getloc_Marker_Map().c_str());
     if(infile1.fail()){cout << "Error Opening File\n";}
     while (getline(infile1,line))
     {
@@ -481,10 +520,10 @@ void ld_decay_estimator(string outputfile, string mapfile, string lineone, vecto
                         /* grab genotypes */
                         double hap11 = 0; double hap12 = 0; double hap21 = 0; double hap22 = 0;
                         double freqsnp1 = 0; double freqsnp2 = 0;
-                        for(int j = 0; j < genotypes.size(); j++)
+                        for(int j = 0; j < markergenotypes.size(); j++)
                         {
-                            int temp1 = atoi((genotypes[j].substr(snp[0],1)).c_str());
-                            int temp2 = atoi((genotypes[j].substr(snp[1],1)).c_str());
+                            int temp1 = atoi((markergenotypes[j].substr(snp[0],1)).c_str());
+                            int temp2 = atoi((markergenotypes[j].substr(snp[1],1)).c_str());
                             /* add to haplotype frequencies */
                             if(temp1 == 0 && temp2 == 0){hap11 += 2;}
                             if(temp1 == 0 && temp2 == 2){hap12 += 2;}
@@ -508,9 +547,9 @@ void ld_decay_estimator(string outputfile, string mapfile, string lineone, vecto
                             freqsnp1 += temp1; freqsnp2 += temp2;
                         }
                         /* Get frequencies */
-                        hap11 = hap11 / (2 * genotypes.size()); hap12 = hap12 / (2 * genotypes.size());
-                        hap21 = hap21 / (2 * genotypes.size()); hap22 = hap22 / (2 * genotypes.size());
-                        freqsnp1 = freqsnp1 / (2 * genotypes.size()); freqsnp2 = freqsnp2 / (2 * genotypes.size());
+                        hap11 = hap11 / (2 * markergenotypes.size()); hap12 = hap12 / (2 * markergenotypes.size());
+                        hap21 = hap21 / (2 * markergenotypes.size()); hap22 = hap22 / (2 * markergenotypes.size());
+                        freqsnp1 = freqsnp1 / (2 * markergenotypes.size()); freqsnp2 = freqsnp2 / (2 * markergenotypes.size());
                         if(hap11 != 0 && hap12 != 0 && hap21 != 0 && hap22 != 0 && (freqsnp1 > 0.0 && freqsnp1 < 1.0) && (freqsnp2 > 0.0 && freqsnp2 < 1.0))
                         {
                             double D = ((hap11*hap22 ) - (hap12*hap21)) * ((hap11*hap22 ) - (hap12*hap21));
@@ -526,7 +565,7 @@ void ld_decay_estimator(string outputfile, string mapfile, string lineone, vecto
     }
     // Calculate LD for a given window as mean off all LD values within a window //
     for(int i = 0; i < 100; i++){r2[i] = r2[i] / numr2[i];}
-    std::ofstream output2(outputfile, std::ios_base::app | std::ios_base::out);
+    std::ofstream output2(OUTPUTFILES.getloc_LD_Decay().c_str(), std::ios_base::app | std::ios_base::out);
     if(lineone == "yes")
     {
         for(int i = 0; i < 100; i++)
@@ -544,7 +583,7 @@ void ld_decay_estimator(string outputfile, string mapfile, string lineone, vecto
 /******************************************/
 /* Calculate LD decay for each QTL or FTL */
 /******************************************/
-void qtlld_decay_estimator(parameters &SimParameters, vector <Animal> &population, vector < QTL_new_old > &population_QTL,string Marker_Map,string foundergen, string QTL_LD_Decay_File, string Phase_Persistance_File, string Phase_Persistance_Outfile)
+void qtlld_decay_estimator(parameters &SimParameters, vector <Animal> &population, vector <QTL_new_old> &population_QTL,outputfiles &OUTPUTFILES,string foundergen)
 {
     //time_t fullbegin_time = time(0);
     /* Read in Marker File */
@@ -553,7 +592,7 @@ void qtlld_decay_estimator(parameters &SimParameters, vector <Animal> &populatio
     vector < int > markerchromosome;
     int linenumber = 0;
     ifstream infile1; string line;
-    infile1.open(Marker_Map.c_str());
+    infile1.open(OUTPUTFILES.getloc_Marker_Map().c_str());
     if(infile1.fail()){cout << "Error Opening File\n";}
     while (getline(infile1,line))
     {
@@ -571,7 +610,7 @@ void qtlld_decay_estimator(parameters &SimParameters, vector <Animal> &populatio
     {
         vector < string > number;
         ifstream infile2;
-        infile2.open(Phase_Persistance_File.c_str());
+        infile2.open(OUTPUTFILES.getloc_Phase_Persistance().c_str());
         if(infile2.fail()){cout << "Error Opening File\n";}
         while (getline(infile2,line)){number.push_back(line);}
         if(number.size() > 0)
@@ -792,7 +831,7 @@ void qtlld_decay_estimator(parameters &SimParameters, vector <Animal> &populatio
     //cout << "Took: " << difftime(fullend_time,fullbegin_time) << " seconds" << endl << endl;
     delete [] QTL; delete [] Marker;
     ofstream output;
-    output.open (QTL_LD_Decay_File.c_str());
+    output.open (OUTPUTFILES.getloc_QTL_LD_Decay().c_str());
     output << "Chr Pos R2" << endl;
     for(int i = 0; i < population_QTL.size(); i++)
     {
@@ -823,7 +862,6 @@ void qtlld_decay_estimator(parameters &SimParameters, vector <Animal> &populatio
                 {
                     cout << old_QTL_outrfile[i] << " " << QTL_outrfile[i] << endl;
                     cout << old_diff_outrfile[i] << " " << diff_outrfile[i] << endl;
-                    
                     cout << endl; cout << "Messed up line 819 " << endl; exit (EXIT_FAILURE);
                 }
                 //cout << old_class_rfile[i] << endl;
@@ -978,12 +1016,12 @@ void qtlld_decay_estimator(parameters &SimParameters, vector <Animal> &populatio
             //cout << strStreamPhaseCor.str() << endl;
             acrossgenerationPhaseCor[i] = strStreamPhaseCor.str();
         }
-        std::ofstream outPhasePers(Phase_Persistance_Outfile.c_str(), std::ios_base::app | std::ios_base::out);
+        std::ofstream outPhasePers(OUTPUTFILES.getloc_Phase_Persistance_Outfile().c_str(), std::ios_base::app | std::ios_base::out);
         outPhasePers << generation[0];
         for(int i = 0; i < acrossgenerationPhaseCor.size(); i++){outPhasePers << " " << acrossgenerationPhaseCor[i];}
         outPhasePers << endl;
         ofstream output1;
-        output1.open (Phase_Persistance_File.c_str());
+        output1.open (OUTPUTFILES.getloc_Phase_Persistance().c_str());
         for(int i = 0; i < old_QTL_outrfile.size(); i++)
         {
             output1 << old_QTL_outrfile[i] << " " << old_diff_outrfile[i] << " " << old_class_rfile[i] << " ";
@@ -996,12 +1034,157 @@ void qtlld_decay_estimator(parameters &SimParameters, vector <Animal> &populatio
     {
         //cout << QTL_outrfile.size() << " " << diff_outrfile.size() << " " << d_outrfile.size() << endl;
         ofstream output1;
-        output1.open (Phase_Persistance_File.c_str());
+        output1.open (OUTPUTFILES.getloc_Phase_Persistance().c_str());
         for(int i = 0; i < QTL_outrfile.size(); i++)
         {
             output1 << QTL_outrfile[i] << " " << diff_outrfile[i] << " " << group_outrfile[i] << " " << d_outrfile[i] << endl;
         }
         output1.close();
     }
+}
+/***************************************************************************************************************************************/
+/***************************************************************************************************************************************/
+/*******                    Window based QTL variance for additive and dominance                                                  ******/
+/***************************************************************************************************************************************/
+/***************************************************************************************************************************************/
+void WindowVariance(parameters &SimParameters,vector <Animal> &population,vector < QTL_new_old > &population_QTL,string foundergen ,outputfiles &OUTPUTFILES)
+{
+    int currentgen;
+    vector <int> QTLchr; vector <int> QTLposmb; vector <double> additive; vector <double> dominance; vector <double> freq;
+    vector < vector < int > > qtlgenotypes;
+    /* Fill QTL parameters */
+    for(int i = 0; i < population_QTL.size(); i++)
+    {
+        int qtlchr = int(population_QTL[i].getLocation());
+        double qtlpos = population_QTL[i].getLocation() - qtlchr;
+        int qtlposmb = qtlpos * (SimParameters.get_ChrLength())[qtlchr-1];
+        QTLchr.push_back(qtlchr); QTLposmb.push_back(qtlposmb); freq.push_back(0.0);
+        additive.push_back(population_QTL[i].getAdditiveEffect());
+        dominance.push_back(population_QTL[i].getDominanceEffect());
+    }
+    //cout << QTLchr.size() << endl;
+    //for(int i = 0; i < QTLchr.size(); i++)
+    //for(int i = 0; i < 25; i++){cout << QTLchr[i] << " " << QTLposmb[i] << " " << additive[i] << " " << dominance[i] << " " << freq[i] << endl;}
+    /* Fill Genotypes and frequency parameters */
+    string tempgeno;
+    for(int i = 0; i < population.size(); i++)
+    {
+        if(population[i].getAge() == 1)
+        {
+            currentgen = population[i].getGeneration();
+            tempgeno = population[i].getQTL();
+            vector < int > temp (QTLchr.size(),0);
+            for(int j = 0; j < QTLchr.size(); j++)
+            {
+                int snp = tempgeno[j] - 48;
+                if(snp == 3 || snp == 4){snp = 1;}
+                temp[j] = snp; freq[j] += snp;
+            }
+            qtlgenotypes.push_back(temp);
+        }
+    }
+    //cout << qtlgenotypes.size() << " " << qtlgenotypes[0].size() << population.size() << endl;
+    //for(int i = 0; i < 5; i++)
+    //{
+    //    for(int j = 0; j < 5; j++){cout << qtlgenotypes[i][j] << " ";}
+    //    cout << endl;
+    //}
+    /* Calculate Frequency */
+    for(int i = 0; i < freq.size(); i++){freq[i] /= double(2*qtlgenotypes.size());}
+    //for(int i = 0; i < 120; i++)
+    //{
+    //    cout << QTLchr[i] << " " << QTLposmb[i] << " " << additive[i] << " " << dominance[i] << " " << freq[i] << endl;
+    //}
+    //for(int i = 0; i < population_QTL.size(); i++){cout << freq[i] << " " << population_QTL[i].getFreq() << endl;}
+    int leftpos = 0;
+    int rightpos = 1000000;
+    int indexpos = 0; int currentchr = 1;
+    /* start at beginning and move window forward; if reach a different chromosome restart left and right at 0 and 1000000 */
+    string stopfull = "no";
+    vector < int > outchr;
+    vector < int > outposition;
+    vector < double > Va;
+    vector < double > Vd;
+    int totalqtlfound = 0;
+    while(stopfull == "no")
+    {
+        vector < int > qtlindex;
+        while(1)
+        {
+            if(QTLposmb[indexpos] >= leftpos && QTLposmb[indexpos] < rightpos && QTLchr[indexpos] == currentchr)
+            {
+                qtlindex.push_back(indexpos);
+            }
+            if(QTLposmb[indexpos] >= leftpos && QTLposmb[indexpos] >= rightpos && QTLchr[indexpos] == currentchr){break;}
+            if(QTLchr[indexpos] != currentchr){break;}
+            indexpos++;
+        }
+        if(qtlindex.size() == 0)
+        {
+            outchr.push_back(currentchr); outposition.push_back(leftpos+500000); Va.push_back(0.0); Vd.push_back(0.0);
+            leftpos += 1000000; rightpos += 1000000;
+        }
+        if(qtlindex.size() > 0)
+        {
+            totalqtlfound += qtlindex.size();
+            outchr.push_back(currentchr); outposition.push_back(leftpos+500000); Va.push_back(0.0); Vd.push_back(0.0);
+            //cout << " - " << qtlindex.size() << " - ";
+            for(int i = 0; i < qtlindex.size(); i++)
+            {
+                //cout << QTLchr[qtlindex[i]] << " " << QTLposmb[qtlindex[i]] << "  -  ";
+                //cout << freq[qtlindex[i]] << " " << additive[qtlindex[i]] << " " << dominance[qtlindex[i]] << endl;
+                Va[outchr.size()-1] += (2*freq[qtlindex[i]]*(1-freq[qtlindex[i]])) * ((additive[qtlindex[i]]+(dominance[qtlindex[i]]*((1-freq[qtlindex[i]])-freq[qtlindex[i]]))) * (additive[qtlindex[i]]+(dominance[qtlindex[i]]*((1-freq[qtlindex[i]])-freq[qtlindex[i]]))));
+                Vd[outchr.size()-1] += ((2*freq[qtlindex[i]]*(1-freq[qtlindex[i]])*dominance[qtlindex[i]])*(2*freq[qtlindex[i]]*(1-freq[qtlindex[i]])*dominance[qtlindex[i]]));
+                //cout << Va[outchr.size()-1] << " " << Vd[outchr.size()-1] << "  -  ";
+                //cout << endl; exit (EXIT_FAILURE);
+            }
+            leftpos += 1000000; rightpos += 1000000;
+        }
+        if(rightpos > (SimParameters.get_ChrLength())[currentchr-1])
+        {
+            leftpos = 0; rightpos = 1000000; currentchr++;
+        }
+        //cout << totalqtlfound << " " << outchr.size() << ": " << outchr[outchr.size()-1] << " " << outposition[outchr.size()-1] << " ";
+        //cout << Va[outchr.size()-1] << " " << Vd[outchr.size()-1] << endl;
+        //if(indexpos > 110){exit (EXIT_FAILURE);}
+        if(currentchr > SimParameters.getChr()){stopfull = "yes";}
+    }
+    if(foundergen == "yes")
+    {
+        fstream checkVafile;
+        checkVafile.open(OUTPUTFILES.getloc_Windowadditive_Output().c_str(), std::fstream::out | std::fstream::trunc); checkVafile.close();
+        fstream checkVdfile;
+        checkVdfile.open(OUTPUTFILES.getloc_Windowdominance_Output().c_str(), std::fstream::out | std::fstream::trunc); checkVdfile.close();
+        /* output Va */
+        std::ofstream outVa(OUTPUTFILES.getloc_Windowadditive_Output().c_str(), std::ios_base::app | std::ios_base::out);
+        outVa << "Generation";
+        for(int i = 0; i < outchr.size(); i++){outVa << " " << outchr[i] << "_" << outposition[i];}
+        outVa << endl;
+        outVa << currentgen;
+        for(int i = 0; i < outchr.size(); i++){outVa << " " << Va[i];}
+        outVa << endl;
+        /* output Vd */
+        std::ofstream outVd(OUTPUTFILES.getloc_Windowdominance_Output().c_str(), std::ios_base::app | std::ios_base::out);
+        outVd << "Generation";
+        for(int i = 0; i < outchr.size(); i++){outVd << " " << outchr[i] << "_" << outposition[i];}
+        outVd << endl;
+        outVd << currentgen;
+        for(int i = 0; i < outchr.size(); i++){outVd << " " << Vd[i];}
+        outVd << endl;
+    }
+    if(foundergen == "no")
+    {
+        /* output Va */
+        std::ofstream outVa(OUTPUTFILES.getloc_Windowadditive_Output().c_str(), std::ios_base::app | std::ios_base::out);
+        outVa << currentgen;
+        for(int i = 0; i < outchr.size(); i++){outVa << " " << Va[i];}
+        outVa << endl;
+        /* output Vd */
+        std::ofstream outVd(OUTPUTFILES.getloc_Windowdominance_Output().c_str(), std::ios_base::app | std::ios_base::out);
+        outVd << currentgen;
+        for(int i = 0; i < outchr.size(); i++){outVd << " " << Vd[i];}
+        outVd << endl;
+    }
+    //for(int i = 0; i < outchr.size(); i++){cout << outchr[i] << " " << outposition[i] << " " << Va[i] << " " << Vd[i] << endl;}
 }
 

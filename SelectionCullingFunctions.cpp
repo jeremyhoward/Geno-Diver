@@ -16,21 +16,32 @@
 #include <Eigen/Core>
 #include <Eigen/LU>
 #include <mkl.h>
+#include "zfstream.h"
+
 
 #include "HaplofinderClasses.h"
 #include "Animal.h"
 #include "MatingDesignClasses.h"
 #include "ParameterClass.h"
+#include "OutputFiles.h"
+#include "Global_Population.h"
 
 using namespace std;
 
 /*********************************/
 /* Relationship Matrix Functions */
 /*********************************/
-void pedigree_relationship(string phenotypefile, vector <int> const &parent_id, double* output_subrelationship);
+void pedigree_relationship(outputfiles &OUTPUTFILES, vector <int> const &parent_id, double* output_subrelationship);
 void grm_noprevgrm(double* input_m, vector < string > const &genotypes, double* output_grm, float scaler);
 void generaterohmatrix(vector <Animal> &population,vector < hapLibrary > &haplib,vector <int> const &parentID, double* _rohrm);
 void matinggrm_maf(parameters &SimParameters,vector < string > &genotypes,double* output_grm,ostream& logfileloc);
+
+/*********************************/
+/* Calculate Selection Intensity */
+/*********************************/
+double SelectionIntensity(double prob, double mu, double sigma);
+
+
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -57,8 +68,6 @@ void breedingagedistribution(vector <Animal> &population,parameters &SimParamete
     }
 }
 
-
-
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -71,7 +80,7 @@ void breedingagedistribution(vector <Animal> &population,parameters &SimParamete
 //////////////////////////
 // Truncation Selection //
 //////////////////////////
-void truncationselection(vector <Animal> &population,parameters &SimParameters,string tempselectionscen,int Gen,string Master_DF_File, string Master_Genotype_File, ostream& logfileloc)
+void truncationselection(vector <Animal> &population,parameters &SimParameters,string tempselectionscen,int Gen,outputfiles &OUTPUTFILES,globalpopvar &Population1,ostream& logfileloc)
 {
     double MaleCutOff = 0.0; double FemaleCutOff = 0.0;                     /* Value cutoff for males or females */
     int male = 0; int female= 0;                                            /* number of male or female animals that are of age 1 */
@@ -91,24 +100,25 @@ void truncationselection(vector <Animal> &population,parameters &SimParameters,s
         if(population[i].getSex() == 0 && population[i].getAge() == 1)                                      /* if male (i.e. 0) */
         {
             if(tempselectionscen == "random"){MaleValue.push_back(population[i].getRndSelection()); male++;}        /* Random Selection */
-            if(tempselectionscen == "phenotype"){MaleValue.push_back(population[i].getPhenotype()); male++;}        /* Phenotypic Selection */
-            if(tempselectionscen == "true_bv"){MaleValue.push_back(population[i].getGenotypicValue()); male++;}     /* TBV Selection */
-            if(tempselectionscen == "ebv"){MaleValue.push_back(population[i].getEBV()); male++;}                    /* EBV Selection */
+            if(tempselectionscen == "phenotype"){MaleValue.push_back((population[i].get_Phenvect())[0]); male++;}   /* Phenotypic Selection */
+            if(tempselectionscen == "tbv"){MaleValue.push_back((population[i].get_GVvect())[0]); male++;}           /* TBV Selection */
+            if(tempselectionscen == "ebv"){MaleValue.push_back((population[i].get_EBVvect())[0]); male++;}          /* EBV Selection */
+            if(tempselectionscen == "index_tbv"){MaleValue.push_back(population[i].gettbvindex()); male++;}         /* Index TBV Selection */
+            if(tempselectionscen == "index_ebv"){MaleValue.push_back(population[i].getebvindex()); male++;}         /* Index EBV Selection */
         }
         if(population[i].getSex() == 1 && population[i].getAge() == 1)                                      /* if female (i.e. 1) */
         {
-            if(tempselectionscen == "random"){FemaleValue.push_back(population[i].getRndSelection()); female++;}    /* Random Selection */
-            if(tempselectionscen == "phenotype"){FemaleValue.push_back(population[i].getPhenotype()); female++;}    /* Phenotypic Selection */
-            if(tempselectionscen == "true_bv"){FemaleValue.push_back(population[i].getGenotypicValue()); female++;} /* TBV Selection */
-            if(tempselectionscen == "ebv"){FemaleValue.push_back(population[i].getEBV()); female++;}                /* EBV Selection */
+            if(tempselectionscen == "random"){FemaleValue.push_back(population[i].getRndSelection()); female++;}     /* Random Selection */
+            if(tempselectionscen == "phenotype"){FemaleValue.push_back((population[i].get_Phenvect())[0]); female++;}/* Phenotypic Selection */
+            if(tempselectionscen == "tbv"){FemaleValue.push_back((population[i].get_GVvect())[0]); female++;}        /* TBV Selection */
+            if(tempselectionscen == "ebv"){FemaleValue.push_back((population[i].get_EBVvect())[0]); female++;}       /* EBV Selection */
+            if(tempselectionscen == "index_tbv"){FemaleValue.push_back(population[i].gettbvindex()); female++;}      /* Index TBV Selection */
+            if(tempselectionscen == "index_ebv"){FemaleValue.push_back(population[i].getebvindex()); female++;}      /* Index EBV Selection */
         }
     }
     //cout << maleparent << " " << femaleparent << endl;
     //cout << male << " " << female << endl;
     //cout << MaleValue.size() << " " << FemaleValue.size() << endl;
-    //for(int i = 0; i < FemaleValue.size(); i++){cout << FemaleValue[i] << " ";}
-    //for(int i = 0; i < MaleValue.size(); i++){cout << MaleValue[i] << " ";}
-    //cout << endl;
     /* Array with correct value based on how selection is to proceed created now sort */
     if(SimParameters.getSelectionDir() == "low" || tempselectionscen == "random")         /* sort lowest to highest */
     {
@@ -141,6 +151,8 @@ void truncationselection(vector <Animal> &population,parameters &SimParameters,s
         }
     }
     //for(int i = 0; i < FemaleValue.size(); i++){cout << FemaleValue[i] << " ";}
+    //cout << endl;
+    //for(int i = 0; i < MaleValue.size(); i++){cout << MaleValue[i] << " ";}
     //cout << endl;
     /* Array sorted now determine cutoff value any animal above this line will be removed */
     logfileloc << "       - Number of Male Selection Candidates: " << male << "." <<  endl;
@@ -211,50 +223,82 @@ void truncationselection(vector <Animal> &population,parameters &SimParameters,s
             }
             if(tempselectionscen == "phenotype" && SimParameters.getSelectionDir() == "low")
             {
-                if(population[i].getSex()==0 && population[i].getAge()==1 && population[i].getPhenotype()>MaleValue[malepos-1]){Action="RM_M"; break;}
-                if(population[i].getSex()==0 && population[i].getAge()==1 && population[i].getPhenotype()<=MaleValue[malepos-1]){Action = "KP_M"; break;}
-                if(population[i].getSex()==1 && population[i].getAge()==1 && population[i].getPhenotype()>FemaleValue[femalepos-1]){Action="RM_F";break;}
-                if(population[i].getSex()==1 && population[i].getAge()==1 && population[i].getPhenotype()<=FemaleValue[femalepos-1]){Action="KP_F";break;}
+                if(population[i].getSex()==0 && population[i].getAge()==1 && (population[i].get_Phenvect())[0]>MaleValue[malepos-1]){Action="RM_M"; break;}
+                if(population[i].getSex()==0 && population[i].getAge()==1 && (population[i].get_Phenvect())[0]<=MaleValue[malepos-1]){Action = "KP_M"; break;}
+                if(population[i].getSex()==1 && population[i].getAge()==1 && (population[i].get_Phenvect())[0]>FemaleValue[femalepos-1]){Action="RM_F";break;}
+                if(population[i].getSex()==1 && population[i].getAge()==1 && (population[i].get_Phenvect())[0]<=FemaleValue[femalepos-1]){Action="KP_F";break;}
                 if(population[i].getAge() > 1){Action = "Old_Animal"; break;}   /* Old parent so keep can only be culled */
             }
             if(tempselectionscen == "phenotype" && SimParameters.getSelectionDir() == "high")
             {
-                if(population[i].getSex()==0 && population[i].getAge()==1 && population[i].getPhenotype()<MaleValue[malepos-1]){Action="RM_M"; break;}
-                if(population[i].getSex()==0 && population[i].getAge()==1 && population[i].getPhenotype()>=MaleValue[malepos-1]){Action="KP_M";break;}
-                if(population[i].getSex()==1 && population[i].getAge()==1 && population[i].getPhenotype()<FemaleValue[femalepos-1]){Action="RM_F";break;}
-                if(population[i].getSex()==1 && population[i].getAge()==1 && population[i].getPhenotype()>=FemaleValue[femalepos-1]){Action="KP_F";break;}
+                if(population[i].getSex()==0 && population[i].getAge()==1 && (population[i].get_Phenvect())[0]<MaleValue[malepos-1]){Action="RM_M"; break;}
+                if(population[i].getSex()==0 && population[i].getAge()==1 && (population[i].get_Phenvect())[0]>=MaleValue[malepos-1]){Action="KP_M";break;}
+                if(population[i].getSex()==1 && population[i].getAge()==1 && (population[i].get_Phenvect())[0]<FemaleValue[femalepos-1]){Action="RM_F";break;}
+                if(population[i].getSex()==1 && population[i].getAge()==1 && (population[i].get_Phenvect())[0]>=FemaleValue[femalepos-1]){Action="KP_F";break;}
                 if(population[i].getAge() > 1){Action = "Old_Animal"; break;}  /* Old parent so keep can only be culled */
             }
-            if(tempselectionscen == "true_bv" && SimParameters.getSelectionDir() == "low")
+            if(tempselectionscen == "tbv" && SimParameters.getSelectionDir() == "low")
             {
-                if(population[i].getSex()==0&&population[i].getAge()==1&&population[i].getGenotypicValue()>MaleValue[malepos-1]){Action="RM_M"; break;}
-                if(population[i].getSex()==0&&population[i].getAge()==1&&population[i].getGenotypicValue()<=MaleValue[malepos-1]){Action="KP_M";break;}
-                if(population[i].getSex()==1&&population[i].getAge()==1&&population[i].getGenotypicValue()>FemaleValue[femalepos-1]){Action="RM_F";break;}
-                if(population[i].getSex()==1&&population[i].getAge()==1&&population[i].getGenotypicValue()<=FemaleValue[femalepos-1]){Action="KP_F";break;}
+                if(population[i].getSex()==0&&population[i].getAge()==1&&(population[i].get_GVvect())[0]>MaleValue[malepos-1]){Action="RM_M"; break;}
+                if(population[i].getSex()==0&&population[i].getAge()==1&&(population[i].get_GVvect())[0]<=MaleValue[malepos-1]){Action="KP_M";break;}
+                if(population[i].getSex()==1&&population[i].getAge()==1&&(population[i].get_GVvect())[0]>FemaleValue[femalepos-1]){Action="RM_F";break;}
+                if(population[i].getSex()==1&&population[i].getAge()==1&&(population[i].get_GVvect())[0]<=FemaleValue[femalepos-1]){Action="KP_F";break;}
                 if(population[i].getAge() > 1){Action = "Old_Animal"; break;}  /* Old parent so keep can only be culled */
             }
-            if(tempselectionscen == "true_bv" && SimParameters.getSelectionDir() == "high")
+            if(tempselectionscen == "tbv" && SimParameters.getSelectionDir() == "high")
             {
-                if(population[i].getSex()==0&&population[i].getAge()==1&&population[i].getGenotypicValue()<MaleValue[malepos-1]){Action="RM_M"; break;}
-                if(population[i].getSex()==0&&population[i].getAge()==1&&population[i].getGenotypicValue()>=MaleValue[malepos-1]){Action="KP_M";break;}
-                if(population[i].getSex()==1&&population[i].getAge()==1&&population[i].getGenotypicValue()<FemaleValue[femalepos-1]){Action="RM_F";break;}
-                if(population[i].getSex()==1&&population[i].getAge()==1&&population[i].getGenotypicValue()>=FemaleValue[femalepos-1]){Action="KP_F";break;}
+                if(population[i].getSex()==0&&population[i].getAge()==1&&(population[i].get_GVvect())[0]<MaleValue[malepos-1]){Action="RM_M"; break;}
+                if(population[i].getSex()==0&&population[i].getAge()==1&&(population[i].get_GVvect())[0]>=MaleValue[malepos-1]){Action="KP_M";break;}
+                if(population[i].getSex()==1&&population[i].getAge()==1&&(population[i].get_GVvect())[0]<FemaleValue[femalepos-1]){Action="RM_F";break;}
+                if(population[i].getSex()==1&&population[i].getAge()==1&&(population[i].get_GVvect())[0]>=FemaleValue[femalepos-1]){Action="KP_F";break;}
                 if(population[i].getAge() > 1){Action = "Old_Animal"; break;}  /* Old parent so keep can only be culled */
             }
             if(tempselectionscen == "ebv" && SimParameters.getSelectionDir() == "low")
             {
-                if(population[i].getSex()==0 && population[i].getAge()==1 && population[i].getEBV()>MaleValue[malepos-1]){Action="RM_M"; break;}
-                if(population[i].getSex()==0 && population[i].getAge()==1 && population[i].getEBV()<=MaleValue[malepos-1]){Action="KP_M";break;}
-                if(population[i].getSex()==1 && population[i].getAge()==1 && population[i].getEBV()>FemaleValue[femalepos-1]){Action="RM_F";break;}
-                if(population[i].getSex()==1 && population[i].getAge()==1 && population[i].getEBV()<=FemaleValue[femalepos-1]){Action="KP_F";break;}
+                if(population[i].getSex()==0 && population[i].getAge()==1 && (population[i].get_EBVvect())[0]>MaleValue[malepos-1]){Action="RM_M"; break;}
+                if(population[i].getSex()==0 && population[i].getAge()==1 && (population[i].get_EBVvect())[0]<=MaleValue[malepos-1]){Action="KP_M";break;}
+                if(population[i].getSex()==1 && population[i].getAge()==1 && (population[i].get_EBVvect())[0]>FemaleValue[femalepos-1]){Action="RM_F";break;}
+                if(population[i].getSex()==1 && population[i].getAge()==1 && (population[i].get_EBVvect())[0]<=FemaleValue[femalepos-1]){Action="KP_F";break;}
                 if(population[i].getAge() > 1){Action = "Old_Animal"; break;}  /* Old parent so keep can only be culled */
             }
             if(tempselectionscen == "ebv" && SimParameters.getSelectionDir() == "high")
             {
-                if(population[i].getSex()==0 && population[i].getAge()==1 && population[i].getEBV()<MaleValue[malepos-1]){Action="RM_M"; break;}
-                if(population[i].getSex()==0 && population[i].getAge()==1 && population[i].getEBV()>=MaleValue[malepos-1]){Action="KP_M";break;}
-                if(population[i].getSex()==1 && population[i].getAge()==1 && population[i].getEBV()<FemaleValue[femalepos-1]){Action="RM_F";break;}
-                if(population[i].getSex()==1 && population[i].getAge()==1 && population[i].getEBV()>=FemaleValue[femalepos-1]){Action="KP_F";break;}
+                if(population[i].getSex()==0 && population[i].getAge()==1 && (population[i].get_EBVvect())[0]<MaleValue[malepos-1]){Action="RM_M"; break;}
+                if(population[i].getSex()==0 && population[i].getAge()==1 && (population[i].get_EBVvect())[0]>=MaleValue[malepos-1]){Action="KP_M";break;}
+                if(population[i].getSex()==1 && population[i].getAge()==1 && (population[i].get_EBVvect())[0]<FemaleValue[femalepos-1]){Action="RM_F";break;}
+                if(population[i].getSex()==1 && population[i].getAge()==1 && (population[i].get_EBVvect())[0]>=FemaleValue[femalepos-1]){Action="KP_F";break;}
+                if(population[i].getAge() > 1){Action = "Old_Animal"; break;}  /* Old parent so keep can only be culled */
+            }
+            if(tempselectionscen == "index_tbv" && SimParameters.getSelectionDir() == "low")
+            {
+                if(population[i].getSex()==0 && population[i].getAge()==1 && population[i].gettbvindex()>MaleValue[malepos-1]){Action="RM_M"; break;}
+                if(population[i].getSex()==0 && population[i].getAge()==1 && population[i].gettbvindex()<=MaleValue[malepos-1]){Action="KP_M";break;}
+                if(population[i].getSex()==1 && population[i].getAge()==1 && population[i].gettbvindex()>FemaleValue[femalepos-1]){Action="RM_F";break;}
+                if(population[i].getSex()==1 && population[i].getAge()==1 && population[i].gettbvindex()<=FemaleValue[femalepos-1]){Action="KP_F";break;}
+                if(population[i].getAge() > 1){Action = "Old_Animal"; break;}  /* Old parent so keep can only be culled */
+            }
+            if(tempselectionscen == "index_tbv" && SimParameters.getSelectionDir() == "high")
+            {
+                if(population[i].getSex()==0 && population[i].getAge()==1 && population[i].gettbvindex()<MaleValue[malepos-1]){Action="RM_M"; break;}
+                if(population[i].getSex()==0 && population[i].getAge()==1 && population[i].gettbvindex()>=MaleValue[malepos-1]){Action="KP_M";break;}
+                if(population[i].getSex()==1 && population[i].getAge()==1 && population[i].gettbvindex()<FemaleValue[femalepos-1]){Action="RM_F";break;}
+                if(population[i].getSex()==1 && population[i].getAge()==1 && population[i].gettbvindex()>=FemaleValue[femalepos-1]){Action="KP_F";break;}
+                if(population[i].getAge() > 1){Action = "Old_Animal"; break;}  /* Old parent so keep can only be culled */
+            }
+            if(tempselectionscen == "index_ebv" && SimParameters.getSelectionDir() == "low")
+            {
+                if(population[i].getSex()==0 && population[i].getAge()==1 && population[i].getebvindex()>MaleValue[malepos-1]){Action="RM_M"; break;}
+                if(population[i].getSex()==0 && population[i].getAge()==1 && population[i].getebvindex()<=MaleValue[malepos-1]){Action="KP_M";break;}
+                if(population[i].getSex()==1 && population[i].getAge()==1 && population[i].getebvindex()>FemaleValue[femalepos-1]){Action="RM_F";break;}
+                if(population[i].getSex()==1 && population[i].getAge()==1 && population[i].getebvindex()<=FemaleValue[femalepos-1]){Action="KP_F";break;}
+                if(population[i].getAge() > 1){Action = "Old_Animal"; break;}  /* Old parent so keep can only be culled */
+            }
+            if(tempselectionscen == "index_ebv" && SimParameters.getSelectionDir() == "high")
+            {
+                if(population[i].getSex()==0 && population[i].getAge()==1 && population[i].getebvindex()<MaleValue[malepos-1]){Action="RM_M"; break;}
+                if(population[i].getSex()==0 && population[i].getAge()==1 && population[i].getebvindex()>=MaleValue[malepos-1]){Action="KP_M";break;}
+                if(population[i].getSex()==1 && population[i].getAge()==1 && population[i].getebvindex()<FemaleValue[femalepos-1]){Action="RM_F";break;}
+                if(population[i].getSex()==1 && population[i].getAge()==1 && population[i].getebvindex()>=FemaleValue[femalepos-1]){Action="KP_F";break;}
                 if(population[i].getAge() > 1){Action = "Old_Animal"; break;}  /* Old parent so keep can only be culled */
             }
         }
@@ -269,9 +313,11 @@ void truncationselection(vector <Animal> &population,parameters &SimParameters,s
         }
         if(Action == "Old_Animal"){keep[i] = 2;}
         if(tempselectionscen == "random"){siredamvalue[i] = population[i].getRndSelection();}
-        if(tempselectionscen == "phenotype"){siredamvalue[i] = population[i].getPhenotype();}
-        if(tempselectionscen == "true_bv"){siredamvalue[i] = population[i].getGenotypicValue();}
-        if(tempselectionscen == "ebv"){siredamvalue[i] = population[i].getEBV();}
+        if(tempselectionscen == "phenotype"){siredamvalue[i] = (population[i].get_Phenvect())[0];}
+        if(tempselectionscen == "tbv"){siredamvalue[i] = (population[i].get_GVvect())[0];}
+        if(tempselectionscen == "ebv"){siredamvalue[i] = (population[i].get_EBVvect())[0];}
+        if(tempselectionscen == "index_tbv"){siredamvalue[i] = population[i].gettbvindex();}
+        if(tempselectionscen == "index_ebv"){siredamvalue[i] = population[i].getebvindex();}
     }
     /* Sometimes if males and females within a litter have same EBV (i.e. no phenotype) will grab too much */
     if(nummaleselected != malepos || numfemaleselected != femalepos)
@@ -281,11 +327,17 @@ void truncationselection(vector <Animal> &population,parameters &SimParameters,s
         {
             if(tempselectionscen == "random"){cout << "Shouldn't Be Here: E-mail Software Developer!!" << endl;}
             if(tempselectionscen == "phenotype"){cout << "Shouldn't Be Here: E-mail Software Developer!!" << endl;}
-            if(tempselectionscen == "true_bv"){cout << "Shouldn't Be Here: E-mail Software Developer!!" << endl;}
+            if(tempselectionscen == "tbv"){cout << "Shouldn't Be Here: E-mail Software Developer!!" << endl;}
+            if(tempselectionscen == "index_tbv"){cout << "Shouldn't Be Here: E-mail Software Developer!!" << endl;}
+            if(tempselectionscen == "index_ebv")
+            {
+                if(population[i].getSex() == 0 && population[i].getebvindex() == MaleValue[malepos-1]){maleloc.push_back(i);}
+                if(population[i].getSex() == 1 && population[i].getebvindex() == FemaleValue[femalepos-1]){femaleloc.push_back(i);}
+            }
             if(tempselectionscen == "ebv")
             {
-                if(population[i].getSex() == 0 && population[i].getEBV() == MaleValue[malepos-1]){maleloc.push_back(i);}
-                if(population[i].getSex() == 1 && population[i].getEBV() == FemaleValue[femalepos-1]){femaleloc.push_back(i);}
+                if(population[i].getSex() == 0 && (population[i].get_EBVvect())[0] == MaleValue[malepos-1]){maleloc.push_back(i);}
+                if(population[i].getSex() == 1 && (population[i].get_EBVvect())[0] == FemaleValue[femalepos-1]){femaleloc.push_back(i);}
             }
         }
         /* If over randomly remove the required number of animals within a family with same EBV */
@@ -341,7 +393,9 @@ void truncationselection(vector <Animal> &population,parameters &SimParameters,s
                         vector < double > fullsibvalues;
                         for(int i = 0; i < siredamkept.size(); i++)
                         {
-                            if(siredamkept[i] == tempsiredam[fam] && keep[i] == 1){fullsibvalues.push_back(siredamvalue[i]);}                        }
+                            if(siredamkept[i] == tempsiredam[fam] && keep[i] == 1){fullsibvalues.push_back(siredamvalue[i]);}
+                        }
+                        //for(int i = 0; i < fullsibvalues.size(); i++){cout << fullsibvalues[i] << " ";}
                         /* sort lowest to highest */
                         if(SimParameters.getSelectionDir() == "low" && tempselectionscen == "random")
                         {
@@ -386,23 +440,34 @@ void truncationselection(vector <Animal> &population,parameters &SimParameters,s
                                 }
                                 if(tempselectionscen == "phenotype")
                                 {
-                                    if(fullsibvalues[i] == population[startpoint].getPhenotype() && keep[startpoint] == 1){found = "YES";}
-                                    if(fullsibvalues[i] != population[startpoint].getPhenotype()){startpoint++;}
+                                    if(fullsibvalues[i] == (population[startpoint].get_Phenvect())[0] && keep[startpoint] == 1){found = "YES";}
+                                    if(fullsibvalues[i] != (population[startpoint].get_Phenvect())[0]){startpoint++;}
                                 }
-                                if(tempselectionscen == "true_bv")
+                                if(tempselectionscen == "tbv")
                                 {
-                                    if(fullsibvalues[i] == population[startpoint].getGenotypicValue() && keep[startpoint] == 1){found = "YES";}
-                                    if(fullsibvalues[i] != population[startpoint].getGenotypicValue()){startpoint++;}
+                                    if(fullsibvalues[i] == (population[startpoint].get_GVvect())[0] && keep[startpoint] == 1){found = "YES";}
+                                    if(fullsibvalues[i] != (population[startpoint].get_GVvect())[0]){startpoint++;}
                                 }
                                 if(tempselectionscen == "ebv")
                                 {
-                                    if(fullsibvalues[i] != population[startpoint].getEBV()){startpoint++;}
-                                    if(fullsibvalues[i] == population[startpoint].getEBV() && keep[startpoint] == 0){startpoint++;}
-                                    if(fullsibvalues[i] == population[startpoint].getEBV() && keep[startpoint] == 1){found = "YES";}
+                                    if(fullsibvalues[i] != (population[startpoint].get_EBVvect())[0]){startpoint++;}
+                                    if(fullsibvalues[i] == (population[startpoint].get_EBVvect())[0] && keep[startpoint] == 0){startpoint++;}
+                                    if(fullsibvalues[i] == (population[startpoint].get_EBVvect())[0] && keep[startpoint] == 1){found = "YES";}
+                                }
+                                if(tempselectionscen == "index_tbv")
+                                {
+                                    if(fullsibvalues[i] != population[startpoint].gettbvindex()){startpoint++;}
+                                    if(fullsibvalues[i] == population[startpoint].gettbvindex() && keep[startpoint] == 0){startpoint++;}
+                                    if(fullsibvalues[i] == population[startpoint].gettbvindex() && keep[startpoint] == 1){found = "YES";}
+                                }
+                                if(tempselectionscen == "index_ebv")
+                                {
+                                    if(fullsibvalues[i] != population[startpoint].getebvindex()){startpoint++;}
+                                    if(fullsibvalues[i] == population[startpoint].getebvindex() && keep[startpoint] == 0){startpoint++;}
+                                    if(fullsibvalues[i] == population[startpoint].getebvindex() && keep[startpoint] == 1){found = "YES";}
                                 }
                             }
-                            /* No longer select animal */
-                            keep[startpoint] = 0;
+                            keep[startpoint] = 0;                   /* No longer select animal */
                             if(population[startpoint].getSex() == 0)
                             {
                                 malepos = malepos + 1;        /* next best candidate value */
@@ -419,33 +484,55 @@ void truncationselection(vector <Animal> &population,parameters &SimParameters,s
                                     }
                                     if(tempselectionscen == "phenotype")
                                     {
-                                        if(MaleValue[malepos-1] == population[startpointa].getPhenotype() && keep[startpointa] == 0)
+                                        if(MaleValue[malepos-1] == (population[startpointa].get_Phenvect())[0] && keep[startpointa] == 0)
                                         {
                                             keep[startpointa] = 1; founda = "YES";
                                         }
-                                        if(MaleValue[malepos-1] != population[startpointa].getPhenotype()){startpointa++;}
+                                        if(MaleValue[malepos-1] != (population[startpointa].get_Phenvect())[0]){startpointa++;}
                                     }
-                                    if(tempselectionscen == "true_bv")
+                                    if(tempselectionscen == "tbv")
                                     {
-                                        if(MaleValue[malepos-1] == population[startpointa].getGenotypicValue() && keep[startpointa] == 0)
+                                        if(MaleValue[malepos-1] == (population[startpointa].get_GVvect())[0] && keep[startpointa] == 0)
                                         {
                                             keep[startpointa] = 1; founda = "YES";
                                         }
-                                        if(MaleValue[malepos-1] != population[startpointa].getGenotypicValue()){startpointa++;}
+                                        if(MaleValue[malepos-1] != (population[startpointa].get_GVvect())[0]){startpointa++;}
                                     }
                                     if(tempselectionscen == "ebv")
                                     {
-                                        if(MaleValue[malepos-1]==population[startpointa].getEBV() && keep[startpointa]==0 && population[startpointa].getSex()==0)
+                                        if(MaleValue[malepos-1]==(population[startpointa].get_EBVvect())[0] && keep[startpointa]==0 && population[startpointa].getSex()==0)
                                         {
                                             keep[startpointa] = 1; founda = "YES";
                                         }
-                                        if(MaleValue[malepos-1]==population[startpointa].getEBV() && keep[startpointa]==1 && population[startpointa].getSex()==0)
+                                        if(MaleValue[malepos-1]==(population[startpointa].get_EBVvect())[0] && keep[startpointa]==1 && population[startpointa].getSex()==0)
                                         {
                                             startpointa++;
                                         }
-                                        if(MaleValue[malepos-1]==population[startpointa].getEBV() && population[startpointa].getSex()==1){startpointa++;}
-                                        if(MaleValue[malepos-1] != population[startpointa].getEBV()){startpointa++;}
+                                        if(MaleValue[malepos-1]==(population[startpointa].get_EBVvect())[0] && population[startpointa].getSex()==1){startpointa++;}
+                                        if(MaleValue[malepos-1] != (population[startpointa].get_EBVvect())[0]){startpointa++;}
                                         
+                                    }
+                                    if(tempselectionscen == "index_tbv")
+                                    {
+                                        if(MaleValue[malepos-1] == population[startpointa].gettbvindex() && keep[startpointa] == 0)
+                                        {
+                                            keep[startpointa] = 1; founda = "YES";
+                                        }
+                                        if(MaleValue[malepos-1] != population[startpointa].gettbvindex()){startpointa++;}
+                                    }
+                                    if(tempselectionscen == "index_ebv")
+                                    {
+                                        if(MaleValue[malepos-1] == population[startpointa].getebvindex() && keep[startpointa] == 0)
+                                        {
+                                            keep[startpointa] = 1; founda = "YES";
+                                        }
+                                        if(MaleValue[malepos-1]==population[startpointa].getebvindex() && keep[startpointa]==1 && population[startpointa].getSex()==0)
+                                        {
+                                            startpointa++;
+                                        }
+                                        if(MaleValue[malepos-1]==population[startpointa].getebvindex() && population[startpointa].getSex()==1){startpointa++;}
+                                        
+                                        if(MaleValue[malepos-1] != population[startpointa].getebvindex()){startpointa++;}
                                     }
                                 }
                             }
@@ -465,34 +552,57 @@ void truncationselection(vector <Animal> &population,parameters &SimParameters,s
                                     }
                                     if(tempselectionscen == "phenotype")
                                     {
-                                        if(FemaleValue[femalepos-1] == population[startpointa].getPhenotype() && keep[startpointa] == 0)
+                                        if(FemaleValue[femalepos-1] == (population[startpointa].get_Phenvect())[0] && keep[startpointa] == 0)
                                         {
                                             keep[startpointa] = 1; founda = "YES";
                                         }
-                                        if(FemaleValue[femalepos-1] != population[startpointa].getPhenotype()){startpointa++;}
+                                        if(FemaleValue[femalepos-1] != (population[startpointa].get_Phenvect())[0]){startpointa++;}
                                     }
-                                    if(tempselectionscen == "true_bv")
+                                    if(tempselectionscen == "tbv")
                                     {
-                                        if(FemaleValue[femalepos-1] == population[startpointa].getGenotypicValue() && keep[startpointa] == 0)
+                                        if(FemaleValue[femalepos-1] == (population[startpointa].get_GVvect())[0] && keep[startpointa] == 0)
                                         {
                                             keep[startpointa] = 1; founda = "YES";
                                         }
-                                        if(FemaleValue[femalepos-1] != population[startpointa].getGenotypicValue()){startpointa++;}
+                                        if(FemaleValue[femalepos-1] != (population[startpointa].get_GVvect())[0]){startpointa++;}
                                     }
                                     if(tempselectionscen == "ebv")
                                     {
-                                        if(FemaleValue[femalepos-1]==population[startpointa].getEBV() && keep[startpointa]==0 && population[startpointa].getSex()==1)
+                                        if(FemaleValue[femalepos-1]==(population[startpointa].get_EBVvect())[0] && keep[startpointa]==0 && population[startpointa].getSex()==1)
                                         {
                                             keep[startpointa] = 1; founda = "YES";
                                         }
-                                        if(FemaleValue[femalepos-1]==population[startpointa].getEBV() && keep[startpointa]==1 && population[startpointa].getSex()==1)
+                                        if(FemaleValue[femalepos-1]==(population[startpointa].get_EBVvect())[0] && keep[startpointa]==1 && population[startpointa].getSex()==1)
                                         {
                                             startpointa++;
                                         }
-                                        if(FemaleValue[femalepos-1]==population[startpointa].getEBV() && population[startpointa].getSex()==0){startpointa++;}
-                                        if(FemaleValue[femalepos-1] != population[startpointa].getEBV()){startpointa++;}
+                                        if(FemaleValue[femalepos-1]==(population[startpointa].get_EBVvect())[0] && population[startpointa].getSex()==0){startpointa++;}
+                                        if(FemaleValue[femalepos-1] != (population[startpointa].get_EBVvect())[0]){startpointa++;}
                                     }
+                                    if(tempselectionscen == "index_tbv")
+                                    {
+                                        if(FemaleValue[femalepos-1] == population[startpointa].gettbvindex() && keep[startpointa] == 0)
+                                        {
+                                            keep[startpointa] = 1; founda = "YES";
+                                        }
+                                        if(FemaleValue[femalepos-1] != population[startpointa].gettbvindex()){startpointa++;}
+                                    }
+                                    if(tempselectionscen == "index_ebv")
+                                    {
+                                        if(FemaleValue[femalepos-1] == population[startpointa].getebvindex() && keep[startpointa] == 0)
+                                        {
+                                            keep[startpointa] = 1; founda = "YES";
+                                        }
+                                        if(FemaleValue[femalepos-1]==population[startpointa].getebvindex() && keep[startpointa]==1 && population[startpointa].getSex()==1)
+                                        {
+                                            startpointa++;
+                                        }
+                                        if(FemaleValue[femalepos-1] == population[startpointa].getebvindex() && population[startpointa].getSex()==0){startpointa++;}
+                                        if(FemaleValue[femalepos-1] != population[startpointa].getebvindex()){startpointa++;}
+                                    }
+                                    //cout << startpointa << " ";
                                 }
+                                //cout << endl;
                             }
                         }
                     }
@@ -510,15 +620,366 @@ void truncationselection(vector <Animal> &population,parameters &SimParameters,s
         }
     }
     male = 0; female = 0;
-    int ROWS = population.size();                           /* Current Size of Population Class */
-    int i = 0; string kill = "NO";
+    if(tempselectionscen != "random")
+    {
+        /* Figure figure out number of age classes */
+        vector < int > sire; vector < int > dam; vector <int> agesubclass;
+        for(int i =0; i < population.size(); i++)                   /* loop through all progeny and grab sire and dam */
+        {
+            if(population[i].getAge() == 1)
+            {
+                if(population[i].getSire() != 0){sire.push_back(population[i].getSireAge());}
+                if(population[i].getDam() != 0){dam.push_back(population[i].getDamAge());}
+                //if(population[i].getDam() != 0 && population[i].getSire() != 0)
+                //{
+                //    stringstream converter; converter << population[i].getSireAge() << population[i].getDamAge();
+                //    agesubclass.push_back(atoi((converter.str()).c_str()));
+                //}
+            }
+        }
+        if(sire.size() > 0 & dam.size() > 0)
+        {
+            //sort(agesubclass.begin(),agesubclass.end() ); agesubclass.erase(unique(agesubclass.begin(),agesubclass.end()),agesubclass.end());
+            //cout << agesubclass.size() << endl;
+            //for(int i = 0; i < agesubclass.size(); i++){cout << agesubclass[i] << " ";}
+            //cout << endl;
+            /* remove duplicates */
+            sort(sire.begin(),sire.end() ); sire.erase(unique(sire.begin(),sire.end()),sire.end());
+            sort(dam.begin(),dam.end() ); dam.erase(unique(dam.begin(),dam.end()),dam.end());
+            vector < int > sirerenum(sire.size(),0); vector < int > damrenum(dam.size(),0); /* in case age skips a number */
+            for(int i = 0; i < sire.size(); i++){sirerenum[i] = i;}
+            for(int i = 0; i < dam.size(); i++){damrenum[i] = i;}
+            //cout << sire.size() << endl;
+            //for(int i = 0; i < sire.size(); i++){cout << sire[i] << "-" << sirerenum[i] << " ";}
+            //cout << endl;
+            //for(int i = 0; i < dam.size(); i++){cout << dam[i] << "-" << damrenum[i] << " ";}
+            //cout << endl;
+            vector < vector <double>> SC_males; vector <int> SC_males_age; vector < vector <double>> SC_msel; vector <int> SC_msel_age;
+            vector < vector <double>> SC_females; vector <int> SC_females_age; vector < vector <double>> SC_fsel; vector <int> SC_fsel_age;
+            int numberoftraits;
+            if(tempselectionscen == "phenotype" || tempselectionscen == "tbv" || tempselectionscen == "ebv"){numberoftraits = SimParameters.getnumbertraits();}
+            if(tempselectionscen == "index_tbv" || tempselectionscen == "index_ebv"){numberoftraits = 1;}
+            for(int i = 0; i < population.size(); i++)
+            {
+                if(population[i].getSex() == 0 && population[i].getAge() == 1)                                      /* if male (i.e. 0) */
+                {
+                    vector < double > temp(numberoftraits,0.0); vector < double > tempa(numberoftraits,0.0);
+                    for(int k = 0; k < numberoftraits; k++)
+                    {
+                        if(tempselectionscen == "phenotype")            /* Phenotypic Selection */
+                        {
+                            temp[k] = (population[i].get_Phenvect())[k];
+                            if(keep[i] == 1){tempa[k] = (population[i].get_Phenvect())[k];}
+                        }
+                        if(tempselectionscen == "tbv")                  /* TBV Selection */
+                        {
+                            temp[k] = (population[i].get_GVvect())[k];
+                            if(keep[i] == 1){tempa[k] = (population[i].get_GVvect())[k];}
+                        }
+                        if(tempselectionscen == "ebv")                  /* EBV Selection */
+                        {
+                            temp[k] = (population[i].get_EBVvect())[k];
+                            if(keep[i] == 1){tempa[k] = (population[i].get_EBVvect())[k];}
+                        }
+                        if(tempselectionscen == "index_tbv")
+                        {
+                            temp[k] = population[i].gettbvindex();
+                            if(keep[i] == 1){tempa[k] = population[i].gettbvindex();}
+                        }
+                        if(tempselectionscen == "index_ebv")
+                        {
+                            temp[k] = population[i].getebvindex();
+                            if(keep[i] == 1){tempa[k] = population[i].getebvindex();}
+                        }
+                    }
+                    SC_males_age.push_back(population[i].getSireAge()); SC_males.push_back(temp);
+                    if(keep[i] == 1){SC_msel.push_back(tempa);SC_msel_age.push_back(population[i].getSireAge());}
+                }
+                if(population[i].getSex() == 1 && population[i].getAge() == 1)                                      /* if female (i.e. 1) */
+                {
+                    vector < double > temp(numberoftraits,0.0); vector < double > tempa(numberoftraits,0.0);
+                    for(int k = 0; k < numberoftraits; k++)
+                    {
+                        if(tempselectionscen == "phenotype")            /* Phenotypic Selection */
+                        {
+                            temp[k] = (population[i].get_Phenvect())[k];
+                            if(keep[i] == 1){tempa[k] = (population[i].get_Phenvect())[k];}
+                        }
+                        if(tempselectionscen == "tbv")              /* TBV Selection */
+                        {
+                            temp[k] = (population[i].get_GVvect())[k];
+                            if(keep[i] == 1){tempa[k] = (population[i].get_GVvect())[k];}
+                        }
+                        if(tempselectionscen == "ebv")                  /* EBV Selection */
+                        {
+                            temp[k] = (population[i].get_EBVvect())[k];
+                            if(keep[i] == 1){tempa[k] = (population[i].get_EBVvect())[k];}
+                        }
+                        if(tempselectionscen == "index_tbv")
+                        {
+                            temp[k] = population[i].gettbvindex();
+                            if(keep[i] == 1){tempa[k] = population[i].gettbvindex();}
+                        }
+                        if(tempselectionscen == "index_ebv")
+                        {
+                            temp[k] = population[i].getebvindex();
+                            if(keep[i] == 1){tempa[k] = population[i].getebvindex();}
+                        }
+                    }
+                    SC_females_age.push_back(population[i].getDamAge()); SC_females.push_back(temp);
+                    if(keep[i] == 1){SC_fsel.push_back(tempa); SC_fsel_age.push_back(population[i].getDamAge());}
+                }
+            }
+            /* Loop through and rename age to index of where it would be in 2d array's */
+            for(int i = 0; i < SC_msel_age.size(); i++)
+            {
+                int search = 0;
+                while(1)
+                {
+                    if(SC_msel_age[i] == sire[search]){SC_msel_age[i] = sirerenum[search]; break;}
+                    if(SC_msel_age[i] != sire[search]){search++;}
+                    if(search >= sire.size()){cout << "Shouldn't be here" << endl; exit (EXIT_FAILURE);}
+                }
+            }
+            for(int i = 0; i < SC_males_age.size(); i++)
+            {
+                int search = 0;
+                while(1)
+                {
+                    if(SC_males_age[i] == sire[search]){SC_males_age[i] = sirerenum[search]; break;}
+                    if(SC_males_age[i] != sire[search]){search++;}
+                    if(search >= sire.size()){cout << "Shouldn't be here" << endl; exit (EXIT_FAILURE);}
+                }
+            }
+            for(int i = 0; i < SC_fsel_age.size(); i++)
+            {
+                int search = 0;
+                while(1)
+                {
+                    if(SC_fsel_age[i] == dam[search]){SC_fsel_age[i] = damrenum[search]; break;}
+                    if(SC_fsel_age[i] != dam[search]){search++;}
+                    if(search >= dam.size()){cout << "Shouldn't be here" << endl; exit (EXIT_FAILURE);}
+                }
+            }
+            for(int i = 0; i < SC_females_age.size(); i++)
+            {
+                int search = 0;
+                while(1)
+                {
+                    if(SC_females_age[i] == dam[search]){SC_females_age[i] = damrenum[search]; break;}
+                    if(SC_females_age[i] != dam[search]){search++;}
+                    if(search >= dam.size()){cout << "Shouldn't be here" << endl; exit (EXIT_FAILURE);}
+                }
+            }
+            //cout << SC_males.size() << " " << SC_males[0].size() << " " << SC_males_age.size() << endl;
+            //cout << SC_msel.size() << " " << SC_msel[0].size() << " " << SC_msel_age.size() << endl;
+            //cout << SC_females.size() << " " << SC_females[0].size() << " " << SC_females_age.size() << endl;
+            //cout << SC_fsel.size() << " " << SC_fsel[0].size() << " " << SC_fsel_age.size() << endl;
+            //for(int i = 0; i < SC_males[0].size(); i++)
+            //{
+            //    double propsel = SC_msel.size() / double(SC_males.size());
+            //    double selint = SelectionIntensity(propsel,0.0,1.0);
+            //    cout << propsel << " " << selint << endl;
+            //}
+            //for(int i = 0; i < SC_females[0].size(); i++)
+            //{
+            //    double propsel = SC_fsel.size() / double(SC_females.size());
+            //    double selint = SelectionIntensity(propsel,0.0,1.0);
+            //    cout << propsel << " " << selint << endl;
+            //}
+            /* Now Loop Through each age class and calculate selection differential */
+            vector < double > sire_numberwithinageclass_sel(sire.size(),0.0); vector < double > sire_numberwithinageclass(sire.size(),0.0);
+            vector < double > dam_numberwithinageclass_sel(dam.size(),0.0); vector < double > dam_numberwithinageclass(dam.size(),0.0);
+            vector < vector <double> > meanselected_m(sire.size(),std::vector<double>(numberoftraits,0.0));
+            vector < vector <double> > meanselected_f(dam.size(),std::vector<double>(numberoftraits,0.0));
+            vector < vector <double> > meanall_m(sire.size(),std::vector<double>(numberoftraits,0.0));
+            vector < vector <double> > meanall_f(dam.size(),std::vector<double>(numberoftraits,0.0));
+            vector < vector <double> > sdall_m(sire.size(),std::vector<double>(numberoftraits,0.0));
+            vector < vector <double> > sdall_f(dam.size(),std::vector<double>(numberoftraits,0.0));
+            vector < vector <double> > seli_m(sire.size(),std::vector<double>(numberoftraits,0.0));
+            vector < vector <double> > seli_f(dam.size(),std::vector<double>(numberoftraits,0.0));
+            /******************/
+            /* First do Males */
+            /******************/
+            /* Selected Group */
+            for(int i = 0; i < SC_msel.size(); i++)
+            {
+                for(int k = 0; k < numberoftraits; k++){meanselected_m[SC_msel_age[i]][k] += SC_msel[i][k];}
+                sire_numberwithinageclass_sel[SC_msel_age[i]] += 1;
+            }
+            for(int i = 0; i < meanselected_m.size(); i++)
+            {
+                for(int j = 0; j < meanselected_m[i].size(); j++)
+                {
+                    if(sire_numberwithinageclass_sel[i] > 0){meanselected_m[i][j] /= double(sire_numberwithinageclass_sel[i]);}
+                }
+            }
+            /*  All Animals  */
+            for(int i = 0; i < SC_males.size(); i++)
+            {
+                for(int k = 0; k < numberoftraits; k++){meanall_m[SC_males_age[i]][k] += SC_males[i][k];}
+                sire_numberwithinageclass[SC_males_age[i]] += 1;
+            }
+            for(int i = 0; i < meanall_m.size(); i++)
+            {
+                for(int j = 0; j < meanall_m[i].size(); j++){meanall_m[i][j] /= double(sire_numberwithinageclass[i]);}
+            }
+            /* All Animals SD */
+            for(int i = 0; i < SC_males.size(); i++)
+            {
+                for(int k = 0; k < numberoftraits; k++)
+                {
+                    sdall_m[SC_males_age[i]][k] += (SC_males[i][k]-meanall_m[SC_males_age[i]][k])*(SC_males[i][k]-meanall_m[SC_males_age[i]][k]);
+                }
+            }
+            for(int i = 0; i < sdall_m.size(); i++)
+            {
+                for(int j = 0; j < sdall_m[i].size(); j++)
+                {
+                    sdall_m[i][j] /= double(sire_numberwithinageclass[i]-1); sdall_m[i][j] = sqrt(sdall_m[i][j]);
+                }
+            }
+            /* Calculate Selection Intensity */
+            for(int i = 0; i < sdall_m.size(); i++)
+            {
+                for(int j = 0; j < sdall_m[i].size(); j++)
+                {
+                    if(sire_numberwithinageclass_sel[i] > 0){seli_m[i][j] = (meanselected_m[i][j] - meanall_m[i][j]) / double(sdall_m[i][j]);}
+                }
+            }
+            //for(int i = 0; i < meanall_m.size(); i++)
+            //{
+            //    cout << "Males Age " << i+1 << ":";
+            //    for(int j = 0; j < meanselected_m[i].size(); j++){cout << " " << meanselected_m[i][j];}
+            //    cout <<"("<<sire_numberwithinageclass_sel[i]<<") -+-";
+            //    for(int j = 0; j < meanall_m[i].size(); j++){cout << " " << meanall_m[i][j];}
+            //    cout <<"("<<sire_numberwithinageclass[i]<<") -+-";
+            //    for(int j = 0; j < sdall_m[i].size(); j++){cout << " " << sdall_m[i][j];}
+            //    cout <<" -+-";
+            //    for(int j = 0; j < seli_m[i].size(); j++){cout << " " << seli_m[i][j];}
+            //    cout << endl;
+            //}
+            /********************/
+            /* First do Females */
+            /********************/
+            /* Selected Group */
+            for(int i = 0; i < SC_fsel.size(); i++)
+            {
+                for(int k = 0; k < numberoftraits; k++){meanselected_f[SC_fsel_age[i]][k] += SC_fsel[i][k];}
+                dam_numberwithinageclass_sel[SC_fsel_age[i]] += 1;
+            }
+            for(int i = 0; i < meanselected_f.size(); i++)
+            {
+                for(int j = 0; j < meanselected_f[i].size(); j++)
+                {
+                    if(dam_numberwithinageclass_sel[i] > 0){meanselected_f[i][j] /= double(dam_numberwithinageclass_sel[i]);}
+                }
+            }
+            /*  All Animals  */
+            for(int i = 0; i < SC_females.size(); i++)
+            {
+                for(int k = 0; k < numberoftraits; k++){meanall_f[SC_females_age[i]][k] += SC_females[i][k];}
+                dam_numberwithinageclass[SC_females_age[i]] += 1;
+            }
+            for(int i = 0; i < meanall_f.size(); i++)
+            {
+                for(int j = 0; j < meanall_f[i].size(); j++){meanall_f[i][j] /= double(dam_numberwithinageclass[i]);}
+            }
+            /* All Animals SD */
+            for(int i = 0; i < SC_females.size(); i++)
+            {
+                for(int k = 0; k < numberoftraits; k++)
+                {
+                    sdall_f[SC_females_age[i]][k] +=(SC_females[i][k]-meanall_f[SC_females_age[i]][k])*(SC_females[i][k]-meanall_f[SC_females_age[i]][k]);
+                }
+            }
+            for(int i = 0; i < sdall_f.size(); i++)
+            {
+                for(int j = 0; j < sdall_f[i].size(); j++){sdall_f[i][j] /= double(dam_numberwithinageclass[i]-1); sdall_f[i][j] = sqrt(sdall_f[i][j]);}
+            }
+            /* Calculate Selection Intensity */
+            for(int i = 0; i < sdall_f.size(); i++)
+            {
+                for(int j = 0; j < sdall_f[i].size(); j++)
+                {
+                    if(dam_numberwithinageclass_sel[i] > 0){seli_f[i][j] = (meanselected_f[i][j] - meanall_f[i][j]) / double(sdall_f[i][j]);}
+                }
+            }
+            //for(int i = 0; i < meanall_f.size(); i++)
+            //{
+            //    cout << "Females Age " << i+1 << ":";
+            //    for(int j = 0; j < meanselected_f[i].size(); j++){cout << " " << meanselected_f[i][j];}
+            //    cout <<"("<<dam_numberwithinageclass_sel[i]<<") -+-";
+            //    for(int j = 0; j < meanall_f[i].size(); j++){cout << " " << meanall_f[i][j];}
+            //    cout <<"("<<dam_numberwithinageclass[i]<<") -+-";
+            //    for(int j = 0; j < sdall_f[i].size(); j++){cout << " " << sdall_f[i][j];}
+            //    cout <<" -+-";
+            //    for(int j = 0; j < seli_f[i].size(); j++){cout << " " << seli_f[i][j];}
+            //   cout << endl;
+            //}
+            /* now make the weighting to add up intensity of selection */
+            for(int i = 0; i < dam_numberwithinageclass_sel.size(); i++){dam_numberwithinageclass_sel[i] /= double(SC_fsel.size());}
+            for(int i = 0; i < sire_numberwithinageclass_sel.size(); i++){sire_numberwithinageclass_sel[i] /= double(SC_msel.size());}
+            //for(int i = 0; i < dam_numberwithinageclass_sel.size(); i++){cout << dam_numberwithinageclass_sel[i] << " ";}
+            //cout << endl;
+            //for(int i = 0; i < sire_numberwithinageclass_sel.size(); i++){cout << sire_numberwithinageclass_sel[i]  << " ";}
+            //cout << endl;
+            /* now generated weighted selection intensity */
+            vector < double> weighted_i_sire(numberoftraits,0.0); vector < double> weighted_i_dam(numberoftraits,0.0);
+            for(int i = 0; i < seli_m.size(); i++)
+            {
+                for(int j = 0; j < seli_m[i].size(); j++){weighted_i_sire[j] += (seli_m[i][j] * sire_numberwithinageclass_sel[i]);}
+            }
+            for(int i = 0; i < seli_f.size(); i++)
+            {
+                for(int j = 0; j < seli_f[i].size(); j++){weighted_i_dam[j] += (seli_f[i][j] * dam_numberwithinageclass_sel[i]);}
+            }
+            logfileloc << "       - Selection Intensity: " << endl;
+            for(int k = 0; k < numberoftraits; k++)
+            {
+                logfileloc<<"           - Trait "<<k+1<<": Males = "<<weighted_i_sire[k]<<"; Female = " << weighted_i_dam[k] << endl;
+            }
+            for(int k = 0; k < numberoftraits; k++)
+            {
+                Population1.update_Intensity_Males(Gen-1,k,weighted_i_sire[k]);
+                Population1.update_Intensity_Females(Gen-1,k,weighted_i_dam[k]);
+            }
+            if(tempselectionscen == "ebv")
+            {
+                vector < double > mean(2,0.0); vector < double > sd(2,0.0); double covar = 0.0; int age1num = 0;
+                for(int i = 0; i < population.size(); i++)
+                {
+                    if(population[i].getAge() == 1)
+                    {
+                        mean[0] += (population[i].get_EBVvect())[0]; mean[1] += (population[i].get_BVvect())[0]; age1num += 1;
+                    }
+                }
+                mean[0] /= age1num; mean[1] /= age1num;
+                for(int i = 0; i < population.size(); i++)
+                {
+                    if(population[i].getAge() == 1)
+                    {
+                        sd[0] += ((population[i].get_EBVvect())[0]-mean[0])*((population[i].get_EBVvect())[0]-mean[0]);
+                        sd[1] += ((population[i].get_BVvect())[0]-mean[1])*((population[i].get_BVvect())[0]-mean[1]);
+                        covar += ((population[i].get_EBVvect())[0]-mean[0])*((population[i].get_BVvect())[0]-mean[1]);
+                    }
+                }
+                sd[0] /= double(age1num-1); sd[1] /= double(age1num-1);
+                covar = (covar / double(sqrt(sd[0]) * sqrt(sd[1]))) / double (age1num-1);
+                Population1.update_accuracydeltaG(Gen-1,covar);
+            }
+        }
+    }
+    /* Start from the end of vector and go back that way saves space */
+    int i = (population.size()-1); string kill = "NO";
     /* Save as a continuous string and then output */
-    stringstream outputstring(stringstream::out); stringstream outputstringgeno(stringstream::out); int outputnum = 0;
+    stringstream outputstring(stringstream::out);
+    stringstream outputstringgeno(stringstream::out); int outputnum = 0;
     while(kill == "NO")
     {
         while(1)
         {
-            if(keep[i] == 2){i++; break;}
+            if(keep[i] == 2){i--; break;}
             if(keep[i] == 0 && population[i].getSex()==0)
             {
                 /* Output info into file with everything in it update with real breeding values at the end */
@@ -529,18 +990,24 @@ void truncationselection(vector <Animal> &population,parameters &SimParameters,s
                 outputstring << population[i].getHap3_F() <<" "<< population[i].getunfavhomolethal() <<" ";
                 outputstring << population[i].getunfavheterolethal() <<" "<<population[i].getunfavhomosublethal() <<" ";
                 outputstring << population[i].getunfavheterosublethal() <<" "<<population[i].getlethalequiv() <<" ";
-                outputstring << population[i].getHomozy() <<" "<< population[i].getpropROH() <<" "<< population[i].getFitness() <<" ";
-                outputstring << population[i].getPhenotype() <<" " << population[i].getEBV() <<" "<< population[i].getAcc() <<" ";
-                outputstring << population[i].getGenotypicValue()<<" " << population[i].getBreedingValue() <<" ";
-                outputstring << population[i].getDominanceDeviation() << " " << population[i].getResidual() << endl;
+                outputstring << population[i].getHomozy() <<" "<< population[i].getpropROH() <<" "<< population[i].getFitness();
+                for(int k = 0; k < SimParameters.getnumbertraits(); k++)
+                {
+                    outputstring <<" "<<(population[i].get_Phenvect())[k]<<" " <<(population[i].get_EBVvect())[k]<<" "<<(population[i].get_Accvect())[k];
+                    outputstring <<" "<<(population[i].get_GVvect())[k]<<" " << (population[i].get_BVvect())[k] <<" ";
+                    outputstring << (population[i].get_DDvect())[k] << " " << (population[i].get_Rvect())[k];
+                }
+                if(SimParameters.getSelection() == "index_tbv" || SimParameters.getSelection() == "index_ebv"){
+                    outputstring << " " << population[i].gettbvindex() << endl;
+                } else {outputstring << endl;}
                 if(SimParameters.getOutputGeno() == "yes" && Gen >= SimParameters.getoutputgeneration())
                 {
-                    outputstringgeno << population[i].getID() <<" "<< population[i].getMarker() <<" "<< population[i].getQTL() << endl; outputnum++;
+                    outputstringgeno << population[i].getID() <<" "<< population[i].getMarker() <<" "<< population[i].getQTL() << endl;
                 }
                 population.erase(population.begin()+i); siredamkept.erase(siredamkept.begin()+i);
-                keep.erase(keep.begin()+i); siredamvalue.erase(siredamvalue.begin()+i); break;
+                keep.erase(keep.begin()+i); siredamvalue.erase(siredamvalue.begin()+i); outputnum++; i--; break;
             }
-            if(keep[i] == 1 && population[i].getSex()==0){male++; i++; break;}
+            if(keep[i] == 1 && population[i].getSex()==0){male++; i--; break;}
             if(keep[i] == 0 && population[i].getSex()==1)
             {
                 /* Output info into file with everything in it update with real breeding values at the end */
@@ -551,36 +1018,52 @@ void truncationselection(vector <Animal> &population,parameters &SimParameters,s
                 outputstring << population[i].getHap3_F() <<" "<< population[i].getunfavhomolethal() <<" ";
                 outputstring << population[i].getunfavheterolethal() <<" "<<population[i].getunfavhomosublethal() <<" ";
                 outputstring << population[i].getunfavheterosublethal() <<" "<<population[i].getlethalequiv() <<" ";
-                outputstring << population[i].getHomozy() <<" "<< population[i].getpropROH() <<" "<< population[i].getFitness() <<" ";
-                outputstring << population[i].getPhenotype() <<" " << population[i].getEBV() <<" "<< population[i].getAcc() <<" ";
-                outputstring << population[i].getGenotypicValue()<<" " << population[i].getBreedingValue() <<" ";
-                outputstring << population[i].getDominanceDeviation() << " " << population[i].getResidual() << endl;
+                outputstring << population[i].getHomozy() <<" "<< population[i].getpropROH() <<" "<< population[i].getFitness();
+                for(int k = 0; k < SimParameters.getnumbertraits(); k++)
+                {
+                    outputstring <<" "<<(population[i].get_Phenvect())[k]<<" " <<(population[i].get_EBVvect())[k]<<" "<<(population[i].get_Accvect())[k];
+                    outputstring <<" "<<(population[i].get_GVvect())[k]<<" " << (population[i].get_BVvect())[k] <<" ";
+                    outputstring << (population[i].get_DDvect())[k] << " " << (population[i].get_Rvect())[k];
+                }
+                if(SimParameters.getSelection() == "index_tbv" || SimParameters.getSelection() == "index_ebv"){
+                    outputstring << " " << population[i].gettbvindex() << endl;
+                } else {outputstring << endl;}
                 if(SimParameters.getOutputGeno() == "yes" && Gen >= SimParameters.getoutputgeneration())
                 {
-                    outputstringgeno << population[i].getID() <<" "<< population[i].getMarker() <<" "<< population[i].getQTL() << endl; outputnum++;
+                    outputstringgeno << population[i].getID() <<" "<< population[i].getMarker() <<" "<< population[i].getQTL() << endl;
                 }
                 population.erase(population.begin()+i); siredamkept.erase(siredamkept.begin()+i);
-                keep.erase(keep.begin()+i); siredamvalue.erase(siredamvalue.begin()+i); break;
+                keep.erase(keep.begin()+i); siredamvalue.erase(siredamvalue.begin()+i); outputnum++; i--; break;
             }
-            if(keep[i] == 1 && population[i].getSex()==1){female++; i++; break;}
+            if(keep[i] == 1 && population[i].getSex()==1){female++; i--; break;}
         }
-        if(outputnum % 100 == 0)
+        if(outputnum % 150 == 0)
         {
             /* output master df file */
-            std::ofstream output3(Master_DF_File.c_str(), std::ios_base::app | std::ios_base::out);
+            std::ofstream output3(OUTPUTFILES.getloc_Master_DF().c_str(), std::ios_base::app | std::ios_base::out);
             output3 << outputstring.str(); outputstring.str(""); outputstring.clear();
             /* output master geno file */
-            std::ofstream output4(Master_Genotype_File.c_str(), std::ios_base::app | std::ios_base::out);
-            output4 << outputstringgeno.str(); outputstringgeno.str(""); outputstringgeno.clear();
+            //std::ofstream output4(OUTPUTFILES.getloc_Master_Genotype().c_str(), std::ios_base::app | std::ios_base::out);
+            //output4 << outputstringgeno.str();
+            gzofstream zippedgeno;
+            zippedgeno.open(OUTPUTFILES.getloc_Master_Genotype_zip().c_str(),std::ios_base::app);
+            if(!zippedgeno.is_open()){cout << endl << "Error can't open zipped genotyped file." << endl; exit (EXIT_FAILURE);}
+            zippedgeno << outputstringgeno.str();
+            zippedgeno.close(); outputstringgeno.str(""); outputstringgeno.clear();
         }
-        if(i >= population.size()){kill = "YES";}
+        if(i == -1){kill = "YES";}
     }
     /* output master df file */
-    std::ofstream output3(Master_DF_File.c_str(), std::ios_base::app | std::ios_base::out);
+    std::ofstream output3(OUTPUTFILES.getloc_Master_DF().c_str(), std::ios_base::app | std::ios_base::out);
     output3 << outputstring.str(); outputstring.str("");  outputstring.clear();
     /* output master geno file */
-    std::ofstream output4(Master_Genotype_File.c_str(), std::ios_base::app | std::ios_base::out);
-    output4 << outputstringgeno.str(); outputstringgeno.str(""); outputstringgeno.clear();
+    //std::ofstream output4(OUTPUTFILES.getloc_Master_Genotype().c_str(), std::ios_base::app | std::ios_base::out);
+    //output4 << outputstringgeno.str();
+    gzofstream zippedgeno;
+    zippedgeno.open(OUTPUTFILES.getloc_Master_Genotype_zip().c_str(),std::ios_base::app);
+    if(!zippedgeno.is_open()){cout << endl << "Error can't open zipped genotyped file." << endl; exit (EXIT_FAILURE);}
+    zippedgeno << outputstringgeno.str();
+    zippedgeno.close(); outputstringgeno.str(""); outputstringgeno.clear();
     /* Calculate number of males and females */
     male = 0; female = 0;
     for(int i = 0; i < population.size(); i++)
@@ -588,7 +1071,6 @@ void truncationselection(vector <Animal> &population,parameters &SimParameters,s
         if(population[i].getSex() == 0 && population[i].getAge() == 1){male++;}
         if(population[i].getSex() == 1 && population[i].getAge() == 1){female++;}
     }
-    time_t end_test = time (0);
     logfileloc << "       - Number Males Selected: " << male << "." <<  endl;
     logfileloc << "       - Number Females Selected: " << female << "." << endl;
     logfileloc << "       - Breeding Population Size: " << population.size() << "." << endl;
@@ -596,7 +1078,7 @@ void truncationselection(vector <Animal> &population,parameters &SimParameters,s
 ////////////////////////////////////
 // Optimal Contribution Selection //
 ////////////////////////////////////
-void optimalcontributionselection(vector <Animal> &population,vector <MatingClass> &matingindividuals,vector < hapLibrary > &haplib,parameters &SimParameters,string tempselectionscen,string Pheno_Pedigree_File,double* M, float scale,string Master_DF_File,string Master_Genotype_File,int Gen,ostream& logfileloc)
+void optimalcontributionselection(vector <Animal> &population,vector <MatingClass> &matingindividuals,vector < hapLibrary > &haplib,parameters &SimParameters,string tempselectionscen,double* M, float scale,outputfiles &OUTPUTFILES,int Gen,ostream& logfileloc)
 {
     system("rm -rf ./evadf || true");
     system("rm -rf ./evarelationship || true");
@@ -604,7 +1086,7 @@ void optimalcontributionselection(vector <Animal> &population,vector <MatingClas
     /* all of the animals will either be in Master_DF_File (culled or unselected) or population */
     /* First read MasterData Frame */
     string line; ifstream infile; vector <string> linestring;
-    infile.open(Master_DF_File.c_str());                                                 /* This file has all animals in it */
+    infile.open(OUTPUTFILES.getloc_Master_DF().c_str());                                                 /* This file has all animals in it */
     if(infile.fail()){cout << "Error Opening Pedigree File\n";}
     while (getline(infile,line)){linestring.push_back(line);}
     /* Used for eva */
@@ -650,7 +1132,7 @@ void optimalcontributionselection(vector <Animal> &population,vector <MatingClas
         tempgen[row-1] = population[i].getGeneration();
         if(population[i].getSex() == 0){tempmates[row-1] = 10; malecan++;}
         if(population[i].getSex() == 1){tempmates[row-1] = 1; femalecan++;}
-        tempebv[row-1] = population[i].getEBV();
+        tempebv[row-1] = (population[i].get_EBVvect())[0];
         if(SimParameters.getocsrelat() == "genomic" || SimParameters.getocsrelat() == "genomicmaf"){genotypeparent.push_back(population[i].getMarker());}
     }
     logfileloc << "       - Number Males Candidates: " << malecan << "." <<  endl;
@@ -669,7 +1151,7 @@ void optimalcontributionselection(vector <Animal> &population,vector <MatingClas
     {
         /* Once Generated Now Generate Relationship */
         double* subsetrelationship = new double[ParentIDs.size()*ParentIDs.size()];     /* Used to store subset of relationship matrix */
-        pedigree_relationship(Pheno_Pedigree_File,ParentIDs, subsetrelationship);                        /* Generate Relationship Matrix */
+        pedigree_relationship(OUTPUTFILES,ParentIDs, subsetrelationship);                        /* Generate Relationship Matrix */
         /* Once relationships are tabulated between parents and fill mate allocation matrix (sire by dams)*/
         //for(int i = (ParentIDs.size()-15); i < ParentIDs.size(); i++)
         //{
@@ -863,9 +1345,9 @@ void optimalcontributionselection(vector <Animal> &population,vector <MatingClas
             outputstring << population[i].getunfavheterolethal() <<" "<<population[i].getunfavhomosublethal() <<" ";
             outputstring << population[i].getunfavheterosublethal() <<" "<<population[i].getlethalequiv() <<" ";
             outputstring << population[i].getHomozy() <<" "<< population[i].getpropROH() <<" "<< population[i].getFitness() <<" ";
-            outputstring << population[i].getPhenotype() <<" " << population[i].getEBV() <<" "<< population[i].getAcc() <<" ";
-            outputstring << population[i].getGenotypicValue()<<" " << population[i].getBreedingValue() <<" ";
-            outputstring << population[i].getDominanceDeviation() << " " << population[i].getResidual() << endl;
+            outputstring << (population[i].get_Phenvect())[0] <<" " << (population[i].get_EBVvect())[0] <<" "<<(population[i].get_Accvect())[0]<<" ";
+            outputstring << (population[i].get_GVvect())[0] <<" " << (population[i].get_BVvect())[0] <<" ";
+            outputstring << (population[i].get_DDvect())[0] << " " << (population[i].get_Rvect())[0] << endl;
             if(SimParameters.getOutputGeno() == "yes" && Gen >= SimParameters.getoutputgeneration())
             {
                 outputstringgeno << population[i].getID() <<" "<< population[i].getMarker() <<" "<< population[i].getQTL() << endl; outputnum++;
@@ -877,18 +1359,18 @@ void optimalcontributionselection(vector <Animal> &population,vector <MatingClas
         if(outputnum % 1000 == 0)
         {
             /* output master df file */
-            std::ofstream output3(Master_DF_File.c_str(), std::ios_base::app | std::ios_base::out);
+            std::ofstream output3(OUTPUTFILES.getloc_Master_DF().c_str(), std::ios_base::app | std::ios_base::out);
             output3 << outputstring.str(); outputstring.str(""); outputstring.clear();
             /* output master geno file */
-            std::ofstream output4(Master_Genotype_File.c_str(), std::ios_base::app | std::ios_base::out);
+            std::ofstream output4(OUTPUTFILES.getloc_Master_Genotype().c_str(), std::ios_base::app | std::ios_base::out);
             output4 << outputstringgeno.str(); outputstringgeno.str(""); outputstringgeno.clear();
         }
     }
     /* output master df file */
-    std::ofstream output3(Master_DF_File.c_str(), std::ios_base::app | std::ios_base::out);
+    std::ofstream output3(OUTPUTFILES.getloc_Master_DF().c_str(), std::ios_base::app | std::ios_base::out);
     output3 << outputstring.str(); outputstring.str("");  outputstring.clear();
     /* output master geno file */
-    std::ofstream output4(Master_Genotype_File.c_str(), std::ios_base::app | std::ios_base::out);
+    std::ofstream output4(OUTPUTFILES.getloc_Master_Genotype().c_str(), std::ios_base::app | std::ios_base::out);
     output4 << outputstringgeno.str(); outputstringgeno.str(""); outputstringgeno.clear();
     /* Calculate number of males and females */
     male = 0; female = 0;
@@ -980,7 +1462,7 @@ void optimalcontributionselection(vector <Animal> &population,vector <MatingClas
 //////////////////////////
 // Discrete Generations //
 //////////////////////////
-void discretegenerations(vector <Animal> &population,parameters &SimParameters,string tempcullingscen,int Gen,string Master_DF_File, string Master_Genotype_File, ostream& logfileloc)
+void discretegenerations(vector <Animal> &population,parameters &SimParameters,string tempcullingscen,int Gen,outputfiles &OUTPUTFILES,ostream& logfileloc)
 {
     /* Output all parents due to non-overlapping generations */
     stringstream outputstring(stringstream::out); stringstream outputstringgeno(stringstream::out);
@@ -1000,10 +1482,16 @@ void discretegenerations(vector <Animal> &population,parameters &SimParameters,s
                 outputstring << population[i].getHap3_F() <<" "<< population[i].getunfavhomolethal() <<" ";
                 outputstring << population[i].getunfavheterolethal() <<" "<<population[i].getunfavhomosublethal() <<" ";
                 outputstring << population[i].getunfavheterosublethal() <<" "<<population[i].getlethalequiv() <<" ";
-                outputstring << population[i].getHomozy() <<" "<< population[i].getpropROH() <<" "<< population[i].getFitness() <<" ";
-                outputstring << population[i].getPhenotype() <<" " << population[i].getEBV() <<" "<< population[i].getAcc() <<" ";
-                outputstring << population[i].getGenotypicValue()<<" " << population[i].getBreedingValue() <<" ";
-                outputstring << population[i].getDominanceDeviation() << " " << population[i].getResidual() << endl;
+                outputstring << population[i].getHomozy() <<" "<< population[i].getpropROH() <<" "<< population[i].getFitness();
+                for(int k = 0; k < SimParameters.getnumbertraits(); k++)
+                {
+                    outputstring <<" "<<(population[i].get_Phenvect())[k]<<" " <<(population[i].get_EBVvect())[k]<<" "<<(population[i].get_Accvect())[k];
+                    outputstring <<" "<<(population[i].get_GVvect())[k]<<" " << (population[i].get_BVvect())[k] <<" ";
+                    outputstring << (population[i].get_DDvect())[k] << " " << (population[i].get_Rvect())[k];
+                }
+                if(SimParameters.getSelection() == "index_tbv" || SimParameters.getSelection() == "index_ebv"){
+                    outputstring << " " << population[i].gettbvindex() << endl;
+                } else {outputstring << endl;}
                 if(SimParameters.getOutputGeno() == "yes" && Gen >= SimParameters.getoutputgeneration())
                 {
                     outputstringgeno << population[i].getID() <<" "<< population[i].getMarker() <<" "<< population[i].getQTL() << endl;
@@ -1017,17 +1505,22 @@ void discretegenerations(vector <Animal> &population,parameters &SimParameters,s
         }
     }
     /* output master df file */
-    std::ofstream output3(Master_DF_File.c_str(), std::ios_base::app | std::ios_base::out);
+    std::ofstream output3(OUTPUTFILES.getloc_Master_DF().c_str(), std::ios_base::app | std::ios_base::out);
     output3 << outputstring.str(); outputstring.str("");  outputstring.clear();
     /* output master geno file */
-    std::ofstream output4(Master_Genotype_File.c_str(), std::ios_base::app | std::ios_base::out);
-    output4 << outputstringgeno.str(); outputstringgeno.str(""); outputstringgeno.clear();
+    //std::ofstream output4(OUTPUTFILES.getloc_Master_Genotype().c_str(), std::ios_base::app | std::ios_base::out);
+    //output4 << outputstringgeno.str();
+    gzofstream zippedgeno;
+    zippedgeno.open(OUTPUTFILES.getloc_Master_Genotype_zip().c_str(),std::ios_base::app);
+    if(!zippedgeno.is_open()){cout << endl << "Error can't open zipped genotyped file." << endl; exit (EXIT_FAILURE);}
+    zippedgeno << outputstringgeno.str();
+    zippedgeno.close(); outputstringgeno.str(""); outputstringgeno.clear();
     logfileloc << "       -Non-overlapping Generations so all parents culled." << endl;
 }
 /////////////////////////////
 // Overlapping Generations //
 /////////////////////////////
-void overlappinggenerations(vector <Animal> &population,parameters &SimParameters,string tempcullingscen,int Gen,string Master_DF_File,string Master_Genotype_File,ostream& logfileloc)
+void overlappinggenerations(vector <Animal> &population,parameters &SimParameters,string tempcullingscen,int Gen,outputfiles &OUTPUTFILES,ostream& logfileloc)
 {
     /* Automatically remove Animals that are at the maximum age then the remaining are used used for proportion culled */
     int oldage = 0;                                         /* Counter for old age */
@@ -1048,10 +1541,16 @@ void overlappinggenerations(vector <Animal> &population,parameters &SimParameter
                 outputstring << population[i].getHap3_F() <<" "<< population[i].getunfavhomolethal() <<" ";
                 outputstring << population[i].getunfavheterolethal() <<" "<<population[i].getunfavhomosublethal() <<" ";
                 outputstring << population[i].getunfavheterosublethal() <<" "<<population[i].getlethalequiv() <<" ";
-                outputstring << population[i].getHomozy() <<" "<< population[i].getpropROH() <<" "<< population[i].getFitness() <<" ";
-                outputstring << population[i].getPhenotype() <<" " << population[i].getEBV() <<" "<< population[i].getAcc() <<" ";
-                outputstring << population[i].getGenotypicValue()<<" " << population[i].getBreedingValue() <<" ";
-                outputstring << population[i].getDominanceDeviation() << " " << population[i].getResidual() << endl;
+                outputstring << population[i].getHomozy() <<" "<< population[i].getpropROH() <<" "<< population[i].getFitness();
+                for(int k = 0; k < SimParameters.getnumbertraits(); k++)
+                {
+                    outputstring <<" "<<(population[i].get_Phenvect())[k]<<" " <<(population[i].get_EBVvect())[k]<<" "<<(population[i].get_Accvect())[k];
+                    outputstring <<" "<<(population[i].get_GVvect())[k]<<" " << (population[i].get_BVvect())[k] <<" ";
+                    outputstring << (population[i].get_DDvect())[k] << " " << (population[i].get_Rvect())[k];
+                }
+                if(SimParameters.getSelection() == "index_tbv" || SimParameters.getSelection() == "index_ebv"){
+                    outputstring << " " << population[i].gettbvindex() << endl;
+                } else {outputstring << endl;}
                 if(SimParameters.getOutputGeno() == "yes" && Gen >= SimParameters.getoutputgeneration())
                 {
                     outputstringgeno << population[i].getID() <<" "<< population[i].getMarker() <<" "<< population[i].getQTL() << endl; outputnum++;
@@ -1065,11 +1564,16 @@ void overlappinggenerations(vector <Animal> &population,parameters &SimParameter
         }
     }
     /* output master df file */
-    std::ofstream output3(Master_DF_File, std::ios_base::app | std::ios_base::out);
+    std::ofstream output3(OUTPUTFILES.getloc_Master_DF().c_str(), std::ios_base::app | std::ios_base::out);
     output3 << outputstring.str(); outputstring.str("");  outputstring.clear();
     /* output master geno file */
-    std::ofstream output4(Master_Genotype_File, std::ios_base::app | std::ios_base::out);
-    output4 << outputstringgeno.str(); outputstringgeno.str(""); outputstringgeno.clear();
+    //std::ofstream output4(OUTPUTFILES.getloc_Master_Genotype().c_str(), std::ios_base::app | std::ios_base::out);
+    //output4 << outputstringgeno.str();
+    gzofstream zippedgeno;
+    zippedgeno.open(OUTPUTFILES.getloc_Master_Genotype_zip().c_str(),std::ios_base::app);
+    if(!zippedgeno.is_open()){cout << endl << "Error can't open zipped genotyped file." << endl; exit (EXIT_FAILURE);}
+    zippedgeno << outputstringgeno.str();
+    zippedgeno.close(); outputstringgeno.str(""); outputstringgeno.clear();
     logfileloc << "       - Culled " << oldage << " Animals Due To Old Age. (New Population Size: " << population.size() <<")" << endl;
     /* now cull remaining animals based on culling criteria */
     double MaleCutOff = 0.0;                                /* Value cutoff for males */
@@ -1090,24 +1594,40 @@ void overlappinggenerations(vector <Animal> &population,parameters &SimParameter
     {
         for(int i = 0; i < population.size(); i++)
         {
-            if(population[i].getSex() == 0 && population[i].getAge() > 1){MaleValue.push_back(population[i].getPhenotype()); male++;}
-            if(population[i].getSex() == 1 && population[i].getAge() > 1){FemaleValue.push_back(population[i].getPhenotype()); female++;}
+            if(population[i].getSex() == 0 && population[i].getAge() > 1){MaleValue.push_back((population[i].get_Phenvect())[0]); male++;}
+            if(population[i].getSex() == 1 && population[i].getAge() > 1){FemaleValue.push_back((population[i].get_Phenvect())[0]); female++;}
         }
     }
-    if(SimParameters.getCulling() == "true_bv" && tempcullingscen != "random" && tempcullingscen == "true_bv")
+    if(SimParameters.getCulling() == "tbv" && tempcullingscen != "random" && tempcullingscen == "tbv")
     {
         for(int i = 0; i < population.size(); i++)
         {
-            if(population[i].getSex() == 0 && population[i].getAge() > 1){MaleValue.push_back(population[i].getGenotypicValue()); male++;}
-            if(population[i].getSex() == 1 && population[i].getAge() > 1){FemaleValue.push_back(population[i].getGenotypicValue());female++;}
+            if(population[i].getSex() == 0 && population[i].getAge() > 1){MaleValue.push_back((population[i].get_GVvect())[0]); male++;}
+            if(population[i].getSex() == 1 && population[i].getAge() > 1){FemaleValue.push_back((population[i].get_GVvect())[0]);female++;}
         }
     }
     if(SimParameters.getCulling() == "ebv" && tempcullingscen != "random")
     {
         for(int i = 0; i < population.size(); i++)
         {
-            if(population[i].getSex() == 0 && population[i].getAge() > 1){MaleValue.push_back(population[i].getEBV()); male++;}
-            if(population[i].getSex() == 1 && population[i].getAge() > 1){FemaleValue.push_back(population[i].getEBV()); female++;}
+            if(population[i].getSex() == 0 && population[i].getAge() > 1){MaleValue.push_back((population[i].get_EBVvect())[0]); male++;}
+            if(population[i].getSex() == 1 && population[i].getAge() > 1){FemaleValue.push_back((population[i].get_EBVvect())[0]); female++;}
+        }
+    }
+    if(SimParameters.getCulling() == "index_tbv" && tempcullingscen != "random")
+    {
+        for(int i = 0; i < population.size(); i++)
+        {
+            if(population[i].getSex() == 0 && population[i].getAge() > 1){MaleValue.push_back(population[i].gettbvindex()); male++;}
+            if(population[i].getSex() == 1 && population[i].getAge() > 1){FemaleValue.push_back(population[i].gettbvindex()); female++;}
+        }
+    }
+    if(SimParameters.getCulling() == "index_ebv" && tempcullingscen != "random")
+    {
+        for(int i = 0; i < population.size(); i++)
+        {
+            if(population[i].getSex() == 0 && population[i].getAge() > 1){MaleValue.push_back(population[i].getebvindex()); male++;}
+            if(population[i].getSex() == 1 && population[i].getAge() > 1){FemaleValue.push_back(population[i].getebvindex()); female++;}
         }
     }
     /* Array with correct value based on how selection is to proceed created now sort */
@@ -1149,9 +1669,9 @@ void overlappinggenerations(vector <Animal> &population,parameters &SimParameter
     }
     logfileloc << "       - Number Male Parents prior to culling: " << male << "." <<  endl;
     logfileloc << "       - Number Female Parents prior to culling: " << female << "." << endl;
-    int malepos;
-    int femalepos;
+    int malepos; int femalepos;
     //for(int i = 0; i < FemaleValue.size(); i++){cout << FemaleValue[i] << " ";}
+    //cout << endl << endl;
     //for(int i = 0; i < MaleValue.size(); i++){cout << MaleValue[i] << " ";}
     //cout << endl;
     /* add 0.5 due to rounding errors accumulating and sometimes will give one less i.e. if put replacement rate as 0.8 */
@@ -1186,50 +1706,82 @@ void overlappinggenerations(vector <Animal> &population,parameters &SimParameter
             }
             if(SimParameters.getCulling() == "phenotype" && SimParameters.getSelectionDir() == "low" && tempcullingscen != "random" && tempcullingscen == "phenotype")
             {
-                if(population[i].getSex()==0 && population[i].getAge()>1 && population[i].getPhenotype()>MaleCutOff){Action = "RM_Male";break;}
-                if(population[i].getSex()==0 && population[i].getAge()>1 && population[i].getPhenotype()<=MaleCutOff){Action = "KP_Male";break;}
-                if(population[i].getSex()==1 && population[i].getAge()>1 && population[i].getPhenotype()>FemaleCutOff){Action = "RM_Female";break;}
-                if(population[i].getSex()==1 && population[i].getAge()>1 && population[i].getPhenotype()<=FemaleCutOff){Action = "KP_Female";break;}
+                if(population[i].getSex()==0 && population[i].getAge()>1 && (population[i].get_Phenvect())[0]>MaleCutOff){Action = "RM_Male";break;}
+                if(population[i].getSex()==0 && population[i].getAge()>1 && (population[i].get_Phenvect())[0]<=MaleCutOff){Action = "KP_Male";break;}
+                if(population[i].getSex()==1 && population[i].getAge()>1 && (population[i].get_Phenvect())[0]>FemaleCutOff){Action = "RM_Female";break;}
+                if(population[i].getSex()==1 && population[i].getAge()>1 && (population[i].get_Phenvect())[0]<=FemaleCutOff){Action = "KP_Female";break;}
                 if(population[i].getAge()==1){Action = "Young_Animal"; break;}
             }
             if(SimParameters.getCulling() == "phenotype" && SimParameters.getSelectionDir() == "high" && tempcullingscen != "random" && tempcullingscen == "phenotype")
             {
-                if(population[i].getSex()==0 && population[i].getAge()>1 && population[i].getPhenotype()<MaleCutOff){Action = "RM_Male";break;}
-                if(population[i].getSex()==0 && population[i].getAge()>1 && population[i].getPhenotype()>=MaleCutOff){Action = "KP_Male";break;}
-                if(population[i].getSex()==1 && population[i].getAge()>1 && population[i].getPhenotype()<FemaleCutOff){Action = "RM_Female";break;}
-                if(population[i].getSex()==1 && population[i].getAge()>1 && population[i].getPhenotype()>=FemaleCutOff){Action = "KP_Female";break;}
+                if(population[i].getSex()==0 && population[i].getAge()>1 && (population[i].get_Phenvect())[0]<MaleCutOff){Action = "RM_Male";break;}
+                if(population[i].getSex()==0 && population[i].getAge()>1 && (population[i].get_Phenvect())[0]>=MaleCutOff){Action = "KP_Male";break;}
+                if(population[i].getSex()==1 && population[i].getAge()>1 && (population[i].get_Phenvect())[0]<FemaleCutOff){Action = "RM_Female";break;}
+                if(population[i].getSex()==1 && population[i].getAge()>1 && (population[i].get_Phenvect())[0]>=FemaleCutOff){Action = "KP_Female";break;}
                 if(population[i].getAge()==1){Action = "Young_Animal"; break;}
             }
-            if(SimParameters.getCulling() == "true_bv" && SimParameters.getSelectionDir() == "low" && tempcullingscen != "random" && tempcullingscen == "true_bv")
+            if(SimParameters.getCulling() == "tbv" && SimParameters.getSelectionDir() == "low" && tempcullingscen != "random" && tempcullingscen == "tbv")
             {
-                if(population[i].getSex()==0 && population[i].getAge()>1 && population[i].getGenotypicValue()>MaleCutOff){Action="RM_Male";break;}
-                if(population[i].getSex()==0 && population[i].getAge()>1 && population[i].getGenotypicValue()<=MaleCutOff){Action="KP_Male";break;}
-                if(population[i].getSex()==1 && population[i].getAge()>1 && population[i].getGenotypicValue()>FemaleCutOff){Action="RM_Female";break;}
-                if(population[i].getSex()==1 && population[i].getAge()>1 && population[i].getGenotypicValue()<=FemaleCutOff){Action="KP_Female";break;}
+                if(population[i].getSex()==0 && population[i].getAge()>1 && (population[i].get_GVvect())[0]>MaleCutOff){Action="RM_Male";break;}
+                if(population[i].getSex()==0 && population[i].getAge()>1 && (population[i].get_GVvect())[0]<=MaleCutOff){Action="KP_Male";break;}
+                if(population[i].getSex()==1 && population[i].getAge()>1 && (population[i].get_GVvect())[0]>FemaleCutOff){Action="RM_Female";break;}
+                if(population[i].getSex()==1 && population[i].getAge()>1 && (population[i].get_GVvect())[0]<=FemaleCutOff){Action="KP_Female";break;}
                 if(population[i].getAge() == 1){Action = "Young_Animal"; break;}
             }
-            if(SimParameters.getCulling() == "true_bv" && SimParameters.getSelectionDir() == "high" && tempcullingscen != "random" && tempcullingscen == "true_bv")
+            if(SimParameters.getCulling() == "tbv" && SimParameters.getSelectionDir() == "high" && tempcullingscen != "random" && tempcullingscen == "tbv")
             {
-                if(population[i].getSex()==0 && population[i].getAge()>1 && population[i].getGenotypicValue()<MaleCutOff){Action="RM_Male";break;}
-                if(population[i].getSex()==0 && population[i].getAge()>1 && population[i].getGenotypicValue()>=MaleCutOff){Action="KP_Male";break;}
-                if(population[i].getSex()==1 && population[i].getAge()>1 && population[i].getGenotypicValue()<FemaleCutOff){Action="RM_Female";break;}
-                if(population[i].getSex()==1 && population[i].getAge()>1 && population[i].getGenotypicValue()>=FemaleCutOff){Action="KP_Female";break;}
+                if(population[i].getSex()==0 && population[i].getAge()>1 && (population[i].get_GVvect())[0]<MaleCutOff){Action="RM_Male";break;}
+                if(population[i].getSex()==0 && population[i].getAge()>1 && (population[i].get_GVvect())[0]>=MaleCutOff){Action="KP_Male";break;}
+                if(population[i].getSex()==1 && population[i].getAge()>1 && (population[i].get_GVvect())[0]<FemaleCutOff){Action="RM_Female";break;}
+                if(population[i].getSex()==1 && population[i].getAge()>1 && (population[i].get_GVvect())[0]>=FemaleCutOff){Action="KP_Female";break;}
                 if(population[i].getAge()==1){Action = "Young_Animal"; break;}
             }
             if(SimParameters.getCulling() == "ebv" && SimParameters.getSelectionDir() == "low" && tempcullingscen != "random")
             {
-                if(population[i].getSex()==0 && population[i].getAge()>1 && population[i].getEBV()>MaleCutOff){Action="RM_Male";break;}
-                if(population[i].getSex()==0 && population[i].getAge()>1 && population[i].getEBV()<=MaleCutOff){Action="KP_Male";break;}
-                if(population[i].getSex()==1 && population[i].getAge()>1 && population[i].getEBV()>FemaleCutOff){Action="RM_Female";break;}
-                if(population[i].getSex()==1 && population[i].getAge()>1 && population[i].getEBV()<=FemaleCutOff){Action="KP_Female";break;}
+                if(population[i].getSex()==0 && population[i].getAge()>1 && (population[i].get_EBVvect())[0]>MaleCutOff){Action="RM_Male";break;}
+                if(population[i].getSex()==0 && population[i].getAge()>1 && (population[i].get_EBVvect())[0]<=MaleCutOff){Action="KP_Male";break;}
+                if(population[i].getSex()==1 && population[i].getAge()>1 && (population[i].get_EBVvect())[0]>FemaleCutOff){Action="RM_Female";break;}
+                if(population[i].getSex()==1 && population[i].getAge()>1 && (population[i].get_EBVvect())[0]<=FemaleCutOff){Action="KP_Female";break;}
                 if(population[i].getAge()==1){Action = "Young_Animal"; break;}
             }
             if(SimParameters.getCulling() == "ebv" && SimParameters.getSelectionDir() == "high" && tempcullingscen != "random")
             {
-                if(population[i].getSex()==0 && population[i].getAge()>1 && population[i].getEBV()<MaleCutOff){Action="RM_Male";break;}
-                if(population[i].getSex()==0 && population[i].getAge()>1 && population[i].getEBV()>=MaleCutOff){Action="KP_Male";break;}
-                if(population[i].getSex()==1 && population[i].getAge()>1 && population[i].getEBV()<FemaleCutOff){Action="RM_Female";break;}
-                if(population[i].getSex()==1 && population[i].getAge()>1 && population[i].getEBV()>=FemaleCutOff){Action="KP_Female";break;}
+                if(population[i].getSex()==0 && population[i].getAge()>1 && (population[i].get_EBVvect())[0]<MaleCutOff){Action="RM_Male";break;}
+                if(population[i].getSex()==0 && population[i].getAge()>1 && (population[i].get_EBVvect())[0]>=MaleCutOff){Action="KP_Male";break;}
+                if(population[i].getSex()==1 && population[i].getAge()>1 && (population[i].get_EBVvect())[0]<FemaleCutOff){Action="RM_Female";break;}
+                if(population[i].getSex()==1 && population[i].getAge()>1 && (population[i].get_EBVvect())[0]>=FemaleCutOff){Action="KP_Female";break;}
+                if(population[i].getAge()==1){Action = "Young_Animal"; break;}
+            }
+            if(SimParameters.getCulling() == "index_tbv" && SimParameters.getSelectionDir() == "low" && tempcullingscen != "random")
+            {
+                if(population[i].getSex()==0 && population[i].getAge()>1 && population[i].gettbvindex()>MaleCutOff){Action="RM_Male";break;}
+                if(population[i].getSex()==0 && population[i].getAge()>1 && population[i].gettbvindex()<=MaleCutOff){Action="KP_Male";break;}
+                if(population[i].getSex()==1 && population[i].getAge()>1 && population[i].gettbvindex()>FemaleCutOff){Action="RM_Female";break;}
+                if(population[i].getSex()==1 && population[i].getAge()>1 && population[i].gettbvindex()<=FemaleCutOff){Action="KP_Female";break;}
+                if(population[i].getAge()==1){Action = "Young_Animal"; break;}
+            }
+            if(SimParameters.getCulling() == "index_tbv" && SimParameters.getSelectionDir() == "high" && tempcullingscen != "random")
+            {
+                if(population[i].getSex()==0 && population[i].getAge()>1 && population[i].gettbvindex()<MaleCutOff){Action="RM_Male";break;}
+                if(population[i].getSex()==0 && population[i].getAge()>1 && population[i].gettbvindex()>=MaleCutOff){Action="KP_Male";break;}
+                if(population[i].getSex()==1 && population[i].getAge()>1 && population[i].gettbvindex()<FemaleCutOff){Action="RM_Female";break;}
+                if(population[i].getSex()==1 && population[i].getAge()>1 && population[i].gettbvindex()>=FemaleCutOff){Action="KP_Female";break;}
+                if(population[i].getAge()==1){Action = "Young_Animal"; break;}
+            }
+            if(SimParameters.getCulling() == "index_ebv" && SimParameters.getSelectionDir() == "low" && tempcullingscen != "random")
+            {
+                if(population[i].getSex()==0 && population[i].getAge()>1 && population[i].getebvindex()>MaleCutOff){Action="RM_Male";break;}
+                if(population[i].getSex()==0 && population[i].getAge()>1 && population[i].getebvindex()<=MaleCutOff){Action="KP_Male";break;}
+                if(population[i].getSex()==1 && population[i].getAge()>1 && population[i].getebvindex()>FemaleCutOff){Action="RM_Female";break;}
+                if(population[i].getSex()==1 && population[i].getAge()>1 && population[i].getebvindex()<=FemaleCutOff){Action="KP_Female";break;}
+                if(population[i].getAge()==1){Action = "Young_Animal"; break;}
+            }
+            if(SimParameters.getCulling() == "index_ebv" && SimParameters.getSelectionDir() == "high" && tempcullingscen != "random")
+            {
+                if(population[i].getSex()==0 && population[i].getAge()>1 && population[i].getebvindex()<MaleCutOff){Action="RM_Male";break;}
+                if(population[i].getSex()==0 && population[i].getAge()>1 && population[i].getebvindex()>=MaleCutOff){Action="KP_Male";break;}
+                if(population[i].getSex()==1 && population[i].getAge()>1 && population[i].getebvindex()<FemaleCutOff){Action="RM_Female";break;}
+                if(population[i].getSex()==1 && population[i].getAge()>1 && population[i].getebvindex()>=FemaleCutOff){Action="KP_Female";break;}
                 if(population[i].getAge()==1){Action = "Young_Animal"; break;}
             }
         }
@@ -1242,6 +1794,7 @@ void overlappinggenerations(vector <Animal> &population,parameters &SimParameter
         }
         if(Action == "Young_Animal"){keep[i] = 2;}
     }
+    //cout << nummalekept << " " << malepos << " - " << numfemalekept << " " << femalepos << endl;
     if(nummalekept != malepos || numfemalekept != femalepos)
     {
         vector <int> maleloc; vector <int> femaleloc;
@@ -1249,11 +1802,19 @@ void overlappinggenerations(vector <Animal> &population,parameters &SimParameter
         {
             if(SimParameters.getCulling() == "random"){cout << "Shouldn't Be Here: E-mail Software Developer!!" << endl;}
             if(SimParameters.getCulling() == "phenotype"){cout << "Shouldn't Be Here: E-mail Software Developer!!" << endl;}
-            if(SimParameters.getCulling() == "true_bv"){cout << "Shouldn't Be Here: E-mail Software Developer!!" << endl;}
+            if(SimParameters.getCulling() == "tbv"){cout << "Shouldn't Be Here: E-mail Software Developer!!" << endl;}
+            if(SimParameters.getCulling() == "index_tbv"){cout << "Shouldn't Be Here: E-mail Software Developer!!" << endl;}
+            if(SimParameters.getCulling() == "index_ebv")
+            {
+                /* If offspring doesn't have phenotype for both traits and don't update ebv after their progeny are born and before culling */
+                /* will have equal breeding values within a litter */
+                if(population[i].getSex() == 0 && population[i].getebvindex() == MaleValue[malepos-1]){maleloc.push_back(i);}
+                if(population[i].getSex() == 1 && population[i].getebvindex() == FemaleValue[femalepos-1]){femaleloc.push_back(i);}
+            }
             if(SimParameters.getCulling() == "ebv")
             {
-                if(population[i].getSex() == 0 && population[i].getEBV() == MaleValue[malepos-1]){maleloc.push_back(i);}
-                if(population[i].getSex() == 1 && population[i].getEBV() == FemaleValue[femalepos-1]){femaleloc.push_back(i);}
+                if(population[i].getSex() == 0 && (population[i].get_EBVvect())[0] == MaleValue[malepos-1]){maleloc.push_back(i);}
+                if(population[i].getSex() == 1 && (population[i].get_EBVvect())[0] == FemaleValue[femalepos-1]){femaleloc.push_back(i);}
             }
         }
         /* If over randomly remove the required number of animals within a family with same EBV */
@@ -1284,10 +1845,16 @@ void overlappinggenerations(vector <Animal> &population,parameters &SimParameter
                 outputstring << population[i].getHap3_F() <<" "<< population[i].getunfavhomolethal() <<" ";
                 outputstring << population[i].getunfavheterolethal() <<" "<<population[i].getunfavhomosublethal() <<" ";
                 outputstring << population[i].getunfavheterosublethal() <<" "<<population[i].getlethalequiv() <<" ";
-                outputstring << population[i].getHomozy() <<" "<< population[i].getpropROH() <<" "<< population[i].getFitness() <<" ";
-                outputstring << population[i].getPhenotype() <<" " << population[i].getEBV() <<" "<< population[i].getAcc() <<" ";
-                outputstring << population[i].getGenotypicValue()<<" " << population[i].getBreedingValue() <<" ";
-                outputstring << population[i].getDominanceDeviation() << " " << population[i].getResidual() << endl;
+                outputstring << population[i].getHomozy() <<" "<< population[i].getpropROH() <<" "<< population[i].getFitness();
+                for(int k = 0; k < SimParameters.getnumbertraits(); k++)
+                {
+                    outputstring <<" "<<(population[i].get_Phenvect())[k]<<" " <<(population[i].get_EBVvect())[k]<<" "<<(population[i].get_Accvect())[k];
+                    outputstring <<" "<<(population[i].get_GVvect())[k]<<" " << (population[i].get_BVvect())[k] <<" ";
+                    outputstring << (population[i].get_DDvect())[k] << " " << (population[i].get_Rvect())[k];
+                }
+                if(SimParameters.getSelection() == "index_tbv" || SimParameters.getSelection() == "index_ebv"){
+                    outputstring << " " << population[i].gettbvindex() << endl;
+                } else {outputstring << endl;}
                 if(SimParameters.getOutputGeno() == "yes" && Gen >= SimParameters.getoutputgeneration())
                 {
                     outputstringgeno << population[i].getID() <<" "<< population[i].getMarker() <<" "<< population[i].getQTL() << endl; outputnum++;
@@ -1305,10 +1872,16 @@ void overlappinggenerations(vector <Animal> &population,parameters &SimParameter
                 outputstring << population[i].getHap3_F() <<" "<< population[i].getunfavhomolethal() <<" ";
                 outputstring << population[i].getunfavheterolethal() <<" "<<population[i].getunfavhomosublethal() <<" ";
                 outputstring << population[i].getunfavheterosublethal() <<" "<<population[i].getlethalequiv() <<" ";
-                outputstring << population[i].getHomozy() <<" "<< population[i].getpropROH() <<" "<< population[i].getFitness() <<" ";
-                outputstring << population[i].getPhenotype() <<" " << population[i].getEBV() <<" "<< population[i].getAcc() <<" ";
-                outputstring << population[i].getGenotypicValue()<<" " << population[i].getBreedingValue() <<" ";
-                outputstring << population[i].getDominanceDeviation() << " " << population[i].getResidual() << endl;
+                outputstring << population[i].getHomozy() <<" "<< population[i].getpropROH() <<" "<< population[i].getFitness();
+                for(int k = 0; k < SimParameters.getnumbertraits(); k++)
+                {
+                    outputstring <<" "<<(population[i].get_Phenvect())[k]<<" " <<(population[i].get_EBVvect())[k]<<" "<<(population[i].get_Accvect())[k];
+                    outputstring <<" "<<(population[i].get_GVvect())[k]<<" " << (population[i].get_BVvect())[k] <<" ";
+                    outputstring << (population[i].get_DDvect())[k] << " " << (population[i].get_Rvect())[k];
+                }
+                if(SimParameters.getSelection() == "index_tbv" || SimParameters.getSelection() == "index_ebv"){
+                    outputstring << " " << population[i].gettbvindex() << endl;
+                } else {outputstring << endl;}
                 if(SimParameters.getOutputGeno() == "yes" && Gen >= SimParameters.getoutputgeneration())
                 {
                     outputstringgeno << population[i].getID() <<" "<< population[i].getMarker() <<" "<< population[i].getQTL() << endl; outputnum++;
@@ -1322,8 +1895,59 @@ void overlappinggenerations(vector <Animal> &population,parameters &SimParameter
     /* output master df file */
     output3 << outputstring.str(); outputstring.str("");  outputstring.clear();
     /* output master geno file */
-    output4 << outputstringgeno.str(); outputstringgeno.str(""); outputstringgeno.clear();
+    //output4 << outputstringgeno.str();
+    zippedgeno.open(OUTPUTFILES.getloc_Master_Genotype_zip().c_str(),std::ios_base::app);
+    if(!zippedgeno.is_open()){cout << endl << "Error can't open zipped genotyped file." << endl; exit (EXIT_FAILURE);}
+    zippedgeno << outputstringgeno.str();
+    zippedgeno.close(); outputstringgeno.str(""); outputstringgeno.clear();
     logfileloc << "       - Number Male parents after culling: " << male << "." <<  endl;
     logfileloc << "       - Number Female parents after culling: " << female << "." << endl;
     logfileloc << "       - Size of population after culling: " << population.size() << endl;
+}
+
+/*********************************/
+/* Calculate Selection Intensity */
+/*********************************/
+double SelectionIntensity(double prob, double mu, double sigma)
+{
+    double p = 1 - prob;
+    const long double PI = 3.141592653589793238L;
+    /* ---------------------- use AS 241 -------------------------- */
+    /* double ppnd16_(double *p, long *ifault)                      */
+    /* ALGORITHM AS241  APPL. STATIST. (1988) VOL. 37, NO. 3        */
+    /* Produces the normal deviate Z corresponding to a given lower */
+    /* tail area of P; Z is accurate to about 1 part in 10**16.     */
+    /* ------------------------------------------------------------ */
+    double q, r, output;
+    if (p < 0 || p > 1){cout << "The probality must be bigger than 0 and smaller than 1." << endl; exit (EXIT_FAILURE);}
+    if (sigma <= 0){cout << "The standard deviation sigma must be positive and greather than zero." << endl; exit (EXIT_FAILURE);}
+    if (p == 0){cout << "The probability can't be zero (i.e. result is infinity)!!" << endl;}
+    if (p == 1){cout << "The probability can't be one (i.e. result is infinity)!!" << endl;}
+    q = p - 0.5;
+    if(abs(q) <= .425)  /* 0.075 <= p <= 0.925 */
+    {
+        r = .180625 - q * q;
+        output = q * (((((((r * 2509.0809287301226727 + 33430.575583588128105) * r + 67265.770927008700853) * r + 45921.953931549871457) * r + 13731.693765509461125) * r + 1971.5909503065514427) * r + 133.14166789178437745) * r + 3.387132872796366608) / (((((((r * 5226.495278852854561 + 28729.085735721942674) * r + 39307.89580009271061) * r + 21213.794301586595867) * r + 5394.1960214247511077) * r + 687.1870074920579083) * r + 42.313330701600911252) * r + 1);
+    } else              /* closer than 0.075 from {0,1} boundary */
+    {
+        /* r = min(p, 1-p) < 0.075 */
+        if (q > 0) {
+            r = 1 - p;
+        } else {r = p;}
+        /* r = sqrt(-log(r))  <==>  min(p, 1-p) = exp( - r^2 ) */
+        r = sqrt(-log(r));
+        if(r <= 5)         /* <==> min(p,1-p) >= exp(-25) ~= 1.3888e-11 */
+        {
+            r += -1.6;
+            output = (((((((r * 7.7454501427834140764e-4 + 0.0227238449892691845833) * r + .24178072517745061177) * r + 1.27045825245236838258) * r + 3.64784832476320460504) * r + 5.7694972214606914055) * r + 4.6303378461565452959) * r + 1.42343711074968357734) / (((((((r *1.05075007164441684324e-9 + 5.475938084995344946e-4) * r + .0151986665636164571966) * r + 0.14810397642748007459) * r + .68976733498510000455) * r + 1.6763848301838038494) * r + 2.05319162663775882187) * r + 1);
+        }
+        else
+        { /* very close to  0 or 1 */
+            r += -5;
+            output = (((((((r * 2.01033439929228813265e-7 + 2.71155556874348757815e-5) * r + 0.0012426609473880784386) * r + .026532189526576123093) * r + .29656057182850489123) * r + 1.7848265399172913358) * r + 5.4637849111641143699) * r + 6.6579046435011037772) / (((((((r *2.04426310338993978564e-15 + 1.4215117583164458887e-7) * r + 1.8463183175100546818e-5) * r + 7.868691311456132591e-4) * r + .0148753612908506148525) * r + .13692988092273580531) * r + 0.59983220655588793769) * r + 1);
+        }
+        if (q < 0.0){output = -output;}
+    }
+    output = mu + sigma * output;
+    return(((1 / double(sqrt(2*PI))) * exp(-(output*output)/2))/ double(prob));
 }

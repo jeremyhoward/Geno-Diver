@@ -20,6 +20,8 @@
 #include "Animal.h"
 #include "MatingDesignClasses.h"
 #include "ParameterClass.h"
+#include "OutputFiles.h"
+
 
 using namespace std;
 
@@ -27,14 +29,14 @@ using namespace std;
 /* Mating Functions */
 /********************/
 void randommating(vector <MatingClass> &matingindividuals, vector <Animal> &population, parameters &SimParameters);
-void randomavoidance(vector <MatingClass> &matingindividuals, vector <Animal> &population,string matingscenario, string Pheno_Pedigree_File, parameters &SimParameters,ostream& logfileloc);
-void minimizepedigree(vector <MatingClass> &matingindividuals, vector <Animal> &population,string matingscenario, string Pheno_Pedigree_File, parameters &SimParameters,ostream& logfileloc);
+void randomavoidance(vector <MatingClass> &matingindividuals, vector <Animal> &population,string matingscenario, outputfiles &OUTPUTFILES, parameters &SimParameters,ostream& logfileloc);
+void minimizepedigree(vector <MatingClass> &matingindividuals, vector <Animal> &population,string matingscenario, outputfiles &OUTPUTFILES, parameters &SimParameters,ostream& logfileloc);
 void minimizegenomic(vector <MatingClass> &matingindividuals, vector <Animal> &population,string matingscenario, double* M, float scale, parameters &SimParameters,ostream& logfileloc);
 void minimizegenomic_maf(vector <MatingClass> &matingindividuals, vector <Animal> &population,string matingscenario, double* M, float scale, parameters &SimParameters,ostream& logfileloc);
 void minimizeroh(vector <MatingClass> &matingindividuals, vector <Animal> &population,vector < hapLibrary > &haplib, string matingscenario, parameters &SimParameters,ostream& logfileloc);
 void assortativemating(vector <MatingClass> &matingindividuals, vector <Animal> &population,string matingscenario,parameters &SimParameters ,ostream& logfileloc);
 void geneticvalueindex(vector <MatingClass> &matingindividuals,vector <Animal> &population,string tempmatescen,parameters &SimParameters,ostream& logfileloc);
-void genetic_inbreedvalueindex(vector <MatingClass> &matingindividuals, vector <Animal> &population,string tempmatescen,parameters &SimParameters,string Pheno_Pedigree_File,double* M, float scale,vector < hapLibrary > &haplib,ostream& logfileloc);
+void genetic_inbreedvalueindex(vector <MatingClass> &matingindividuals, vector <Animal> &population,string tempmatescen,parameters &SimParameters,outputfiles &OUTPUTFILES,double* M, float scale,vector < hapLibrary > &haplib,ostream& logfileloc);
 void generate2traitindex(double* mate_value_matrix1, double* mate_value_matrix2, double* mate_index_matrix,parameters &SimParameters, vector <int> const &sireIDs, vector <int> const &damIDs, vector <double> &returnweights);
 
 
@@ -42,7 +44,7 @@ void generate2traitindex(double* mate_value_matrix1, double* mate_value_matrix2,
 /* Relationship Matrix Functions */
 /*********************************/
 void pedigree_relationship(string phenotypefile, vector <int> const &parent_id, double* output_subrelationship);
-void pedigree_relationship_Colleau(string phenotypefile, vector <int> const &parent_id, double* output_subrelationship);
+void pedigree_relationship_Colleau(outputfiles &OUTPUTFILES, vector <int> const &parent_id, double* output_subrelationship);
 void grm_noprevgrm(double* input_m, vector < string > const &genotypes, double* output_grm, float scaler);
 void generaterohmatrix(vector <Animal> &population,vector < hapLibrary > &haplib,vector <int> const &parentID, double* _rohrm);
 void matinggrm_maf(parameters &SimParameters,vector < string > &genotypes,double* output_grm,ostream& logfileloc);
@@ -290,9 +292,9 @@ string choosematingscenario(parameters &SimParameters, string tempselectionvecto
     return tempmatingscenario;
 }
 ////////////////////////////////////////////////
-// Based on index values choose mating pairs //
+// Based on index values choose mating pairs ///
 ////////////////////////////////////////////////
-void indexmatingdesign(vector <MatingClass> &matingindividuals, vector <Animal> &population, vector < hapLibrary > &haplib, parameters &SimParameters, string Pheno_Pedigree_File, double* M,float scale,ostream& logfileloc)
+void indexmatingdesign(vector <MatingClass> &matingindividuals, vector <Animal> &population, vector < hapLibrary > &haplib, parameters &SimParameters, outputfiles &OUTPUTFILES , double* M,float scale,ostream& logfileloc)
 {
     string tempmatescen;
     /* If size of both equal 1 then it is just a function of breeding value */
@@ -303,7 +305,7 @@ void indexmatingdesign(vector <MatingClass> &matingindividuals, vector <Animal> 
         //    cout << (SimParameters.get_indexweights())[i] << " " << (SimParameters.get_indexparameters())[i] << endl;
         //}
         if((SimParameters.get_indexparameters())[0] == "ebv"){tempmatescen = "INDEX_EBV";}
-        if((SimParameters.get_indexparameters())[0] == "true_bv"){tempmatescen = "INDEX_TBV";}
+        if((SimParameters.get_indexparameters())[0] == "tbv"){tempmatescen = "INDEX_TBV";}
         if((SimParameters.get_indexparameters())[0] == "phenotype"){tempmatescen = "INDEX_PHEN";}
         logfileloc << "       - Parent mated based on an index value comprised of " << (SimParameters.get_indexparameters())[0] << " only." << endl;
     }
@@ -316,9 +318,9 @@ void indexmatingdesign(vector <MatingClass> &matingindividuals, vector <Animal> 
         if((SimParameters.get_indexparameters())[0]=="ebv" && (SimParameters.get_indexparameters())[1]=="pedigree"){tempmatescen = "INDEX_EBV_PED";}
         if((SimParameters.get_indexparameters())[0]=="ebv" && (SimParameters.get_indexparameters())[1]=="genomic"){tempmatescen = "INDEX_EBV_GEN";}
         if((SimParameters.get_indexparameters())[0]=="ebv" && (SimParameters.get_indexparameters())[1]=="ROH"){tempmatescen = "INDEX_EBV_ROH";}
-        if((SimParameters.get_indexparameters())[0]=="true_bv" && (SimParameters.get_indexparameters())[1]=="pedigree"){tempmatescen = "INDEX_TBV_PED";}
-        if((SimParameters.get_indexparameters())[0]=="true_bv" && (SimParameters.get_indexparameters())[1]=="genomic"){tempmatescen = "INDEX_TBV_GEN";}
-        if((SimParameters.get_indexparameters())[0]=="true_bv" && (SimParameters.get_indexparameters())[1]=="ROH"){tempmatescen = "INDEX_TBV_ROH";}
+        if((SimParameters.get_indexparameters())[0]=="tbv" && (SimParameters.get_indexparameters())[1]=="pedigree"){tempmatescen = "INDEX_TBV_PED";}
+        if((SimParameters.get_indexparameters())[0]=="tbv" && (SimParameters.get_indexparameters())[1]=="genomic"){tempmatescen = "INDEX_TBV_GEN";}
+        if((SimParameters.get_indexparameters())[0]=="tbv" && (SimParameters.get_indexparameters())[1]=="ROH"){tempmatescen = "INDEX_TBV_ROH";}
         if((SimParameters.get_indexparameters())[0]=="phenotype" && (SimParameters.get_indexparameters())[1]=="pedigree"){tempmatescen = "INDEX_PHEN_PED";}
         if((SimParameters.get_indexparameters())[0]=="phenotype" && (SimParameters.get_indexparameters())[1]=="genomic"){tempmatescen = "INDEX_PHEN_GEN";}
         if((SimParameters.get_indexparameters())[0]=="phenotype" && (SimParameters.get_indexparameters())[1]=="ROH"){tempmatescen = "INDEX_PHEN_ROH";}
@@ -364,14 +366,14 @@ void indexmatingdesign(vector <MatingClass> &matingindividuals, vector <Animal> 
        tempmatescen == "INDEX_PHEN_ROH")
     {
         /* Generate mating pairs based on genetic value and inbreeding */
-        genetic_inbreedvalueindex(matingindividuals,population,tempmatescen,SimParameters,Pheno_Pedigree_File,M,scale,haplib,logfileloc);
+        genetic_inbreedvalueindex(matingindividuals,population,tempmatescen,SimParameters,OUTPUTFILES,M,scale,haplib,logfileloc);
     }
 }
 
 ////////////////////////////////////////////////
 // Given mating scenario chooses mating pairs //
 ////////////////////////////////////////////////
-void generatematingpairs(vector <MatingClass> &matingindividuals, vector <Animal> &population, vector < hapLibrary > &haplib,parameters &SimParameters, string matingscenario, string Pheno_Pedigree_File, double* M,float scale, ostream& logfileloc)
+void generatematingpairs(vector <MatingClass> &matingindividuals, vector <Animal> &population, vector < hapLibrary > &haplib,parameters &SimParameters, string matingscenario, outputfiles &OUTPUTFILES, double* M,float scale, ostream& logfileloc)
 {
     //cout << matingscenario << " " << Pheno_Pedigree_File << endl;
     /* First fill matingclass with male and females */
@@ -405,14 +407,14 @@ void generatematingpairs(vector <MatingClass> &matingindividuals, vector <Animal
         if(matingscenario == "RANDOM5"){logfileloc << 0.50 << ", otherwise random mating" << endl;}
         if(matingscenario == "RANDOM25"){logfileloc << 0.25 << ", otherwise random mating" << endl;}
         if(matingscenario == "RANDOM125"){logfileloc << 0.125 << ", otherwise random mating" << endl;}
-        randomavoidance(matingindividuals,population,matingscenario,Pheno_Pedigree_File,SimParameters,logfileloc);
+        randomavoidance(matingindividuals,population,matingscenario,OUTPUTFILES,SimParameters,logfileloc);
     }
     if(matingscenario == "MINPEDIGREE")
     {
         randommating(matingindividuals,population,SimParameters); /* First do random mating then do avoidance */
         logfileloc << "       - Size of mating class: " << matingindividuals.size() << endl;
         logfileloc << "       - Minimize coancestries based on pedigree-based relationship matrix." << endl;
-        minimizepedigree(matingindividuals,population,matingscenario,Pheno_Pedigree_File,SimParameters,logfileloc);
+        minimizepedigree(matingindividuals,population,matingscenario,OUTPUTFILES,SimParameters,logfileloc);
     }
     if(matingscenario == "MINGENOMIC")
     {
@@ -663,7 +665,7 @@ void randommating(vector <MatingClass> &matingindividuals, vector <Animal> &popu
 /////////////////////////////////////////////////////////
 ////          Random Avoidance Mating                ////
 /////////////////////////////////////////////////////////
-void randomavoidance(vector <MatingClass> &matingindividuals, vector <Animal> &population,string matingscenario, string Pheno_Pedigree_File, parameters &SimParameters,ostream& logfileloc)
+void randomavoidance(vector <MatingClass> &matingindividuals, vector <Animal> &population,string matingscenario, outputfiles &OUTPUTFILES, parameters &SimParameters,ostream& logfileloc)
 {
     string direction = "minimum";
     /* order of relationship matrix is the same as matingindividuals class */
@@ -726,7 +728,7 @@ void randomavoidance(vector <MatingClass> &matingindividuals, vector <Animal> &p
     }
     double* mate_value_matrix = new double[sireA.size() * damA.size()];                    /* mate allocation matrix based on pedigree */
     //pedigree_relationship(Pheno_Pedigree_File,parentID, subsetrelationship);                        /* Generate Relationship Matrix */
-    pedigree_relationship_Colleau(Pheno_Pedigree_File,parentID, subsetrelationship);
+    pedigree_relationship_Colleau(OUTPUTFILES,parentID, subsetrelationship);
     /* Once relationships are tabulated between parents and fill mate allocation matrix (sire by dams)*/
     for(int i = 0; i < sireA.size(); i++)
     {
@@ -791,7 +793,7 @@ void randomavoidance(vector <MatingClass> &matingindividuals, vector <Animal> &p
 /////////////////////////////////////////////////////////
 ////          Minimize Based On Pedigree             ////
 /////////////////////////////////////////////////////////
-void minimizepedigree(vector <MatingClass> &matingindividuals, vector <Animal> &population,string matingscenario, string Pheno_Pedigree_File, parameters &SimParameters,ostream& logfileloc)
+void minimizepedigree(vector <MatingClass> &matingindividuals, vector <Animal> &population,string matingscenario, outputfiles &OUTPUTFILES, parameters &SimParameters,ostream& logfileloc)
 {
     string direction = "minimum";
     /* order of relationship matrix is the same as matingindividuals class */
@@ -850,7 +852,7 @@ void minimizepedigree(vector <MatingClass> &matingindividuals, vector <Animal> &
     double* mate_value_matrix = new double[sireA.size() * damA.size()];                    /* mate allocation matrix based on pedigree */
     for(int i = 0; i < sireA.size()*damA.size(); i++){mate_value_matrix[i] = 0.0;}
     //pedigree_relationship(Pheno_Pedigree_File,parentID, subsetrelationship);                        /* Generate Relationship Matrix */
-    pedigree_relationship_Colleau(Pheno_Pedigree_File,parentID, subsetrelationship);
+    pedigree_relationship_Colleau(OUTPUTFILES,parentID, subsetrelationship);
     /* Once relationships are tabulated between parents and fill mate allocation matrix (sire by dams)*/
     for(int i = 0; i < sireA.size(); i++)
     {
@@ -1265,9 +1267,9 @@ void assortativemating(vector <MatingClass> &matingindividuals, vector <Animal> 
         {
             if(population[searchlocation].getID() == sireIDs[i])
             {
-                if(SimParameters.getSelection() == "ebv"){sireVALUE[i] = population[searchlocation].getEBV();}
-                if(SimParameters.getSelection() == "true_bv"){sireVALUE[i] = population[searchlocation].getGenotypicValue();}
-                if(SimParameters.getSelection() == "phenotype"){sireVALUE[i] = population[searchlocation].getPhenotype();}
+                if(SimParameters.getSelection() == "ebv"){sireVALUE[i] = (population[searchlocation].get_EBVvect())[0];}
+                if(SimParameters.getSelection() == "tbv"){sireVALUE[i] = (population[searchlocation].get_BVvect())[0];}
+                if(SimParameters.getSelection() == "phenotype"){sireVALUE[i] = (population[searchlocation].get_Phenvect())[0];}
                 break;
                 //cout << sireIDs[i] << " " << sireVALUE[i] << endl;
             }
@@ -1281,9 +1283,9 @@ void assortativemating(vector <MatingClass> &matingindividuals, vector <Animal> 
         {
             if(population[searchlocation].getID() == damIDs[i])
             {
-                if(SimParameters.getSelection() == "ebv"){damVALUE[i] = population[searchlocation].getEBV();}
-                if(SimParameters.getSelection() == "true_bv"){damVALUE[i] = population[searchlocation].getGenotypicValue();}
-                if(SimParameters.getSelection() == "phenotype"){damVALUE[i] = population[searchlocation].getPhenotype();}
+                if(SimParameters.getSelection() == "ebv"){damVALUE[i] = (population[searchlocation].get_EBVvect())[0];}
+                if(SimParameters.getSelection() == "tbv"){damVALUE[i] = (population[searchlocation].get_BVvect())[0];}
+                if(SimParameters.getSelection() == "phenotype"){damVALUE[i] = (population[searchlocation].get_Phenvect())[0];}
                 break;
                 //cout << damIDs[i] << " " << damVALUE[i] << endl;
             }
@@ -1390,16 +1392,16 @@ void geneticvalueindex(vector <MatingClass> &matingindividuals,vector <Animal> &
             if(matingindividuals[i].getType_MC() == 0)
             {
                 sireIDs.push_back(matingindividuals[i].getID_MC());
-                if(tempmatescen == "INDEX_EBV"){sireVALUE.push_back(population[searchlocation].getEBV());}
-                if(tempmatescen == "INDEX_TBV"){sireVALUE.push_back(population[searchlocation].getGenotypicValue());}
-                if(tempmatescen == "INDEX_PHEN"){sireVALUE.push_back(population[searchlocation].getPhenotype());}
+                if(tempmatescen == "INDEX_EBV"){sireVALUE.push_back((population[searchlocation].get_EBVvect())[0]);}
+                if(tempmatescen == "INDEX_TBV"){sireVALUE.push_back((population[searchlocation].get_BVvect())[0]);}
+                if(tempmatescen == "INDEX_PHEN"){sireVALUE.push_back((population[searchlocation].get_Phenvect())[0]);}
             }
             if(matingindividuals[i].getType_MC() == 1)
             {
                 damIDs.push_back(matingindividuals[i].getID_MC());
-                if(tempmatescen == "INDEX_EBV"){damVALUE.push_back(population[searchlocation].getEBV());}
-                if(tempmatescen == "INDEX_TBV"){damVALUE.push_back(population[searchlocation].getGenotypicValue());}
-                if(tempmatescen == "INDEX_PHEN"){damVALUE.push_back(population[searchlocation].getPhenotype());}
+                if(tempmatescen == "INDEX_EBV"){damVALUE.push_back((population[searchlocation].get_EBVvect())[0]);}
+                if(tempmatescen == "INDEX_TBV"){damVALUE.push_back((population[searchlocation].get_BVvect())[0]);}
+                if(tempmatescen == "INDEX_PHEN"){damVALUE.push_back((population[searchlocation].get_Phenvect())[0]);}
             }
         }
     }
@@ -1442,7 +1444,7 @@ void geneticvalueindex(vector <MatingClass> &matingindividuals,vector <Animal> &
 //////////////////////////////////////////////////////////
 ////     Index mating based on EBV and Inbreeding     ////
 //////////////////////////////////////////////////////////
-void genetic_inbreedvalueindex(vector <MatingClass> &matingindividuals, vector <Animal> &population,string tempmatescen,parameters &SimParameters,string Pheno_Pedigree_File,double* M, float scale,vector < hapLibrary > &haplib,ostream& logfileloc)
+void genetic_inbreedvalueindex(vector <MatingClass> &matingindividuals, vector <Animal> &population,string tempmatescen,parameters &SimParameters,outputfiles &OUTPUTFILES,double* M, float scale,vector < hapLibrary > &haplib,ostream& logfileloc)
 {
     ///******************/
     ///* Check with EVA */
@@ -1493,15 +1495,15 @@ void genetic_inbreedvalueindex(vector <MatingClass> &matingindividuals, vector <
                 sireIDs.push_back(matingindividuals[i].getID_MC()); sireA.push_back(i);
                 if(tempmatescen == "INDEX_EBV_PED" || tempmatescen == "INDEX_EBV_GEN" || tempmatescen == "INDEX_EBV_ROH")
                 {
-                    sireVALUE.push_back(population[searchlocation].getEBV());
+                    sireVALUE.push_back((population[searchlocation].get_EBVvect())[0]);
                 }
                 if(tempmatescen == "INDEX_TBV_PED" || tempmatescen == "INDEX_TBV_GEN" || tempmatescen == "INDEX_TBV_ROH")
                 {
-                    sireVALUE.push_back(population[searchlocation].getGenotypicValue());
+                    sireVALUE.push_back((population[searchlocation].get_BVvect())[0]);
                 }
                 if(tempmatescen == "INDEX_PHEN_PED" || tempmatescen == "INDEX_PHEN_GEN" || tempmatescen == "INDEX_PHEN_ROH")
                 {
-                    sireVALUE.push_back(population[searchlocation].getPhenotype());
+                    sireVALUE.push_back((population[searchlocation].get_Phenvect())[0]);
                 }
             }
             if(matingindividuals[i].getType_MC() == 1)
@@ -1509,15 +1511,15 @@ void genetic_inbreedvalueindex(vector <MatingClass> &matingindividuals, vector <
                 damIDs.push_back(matingindividuals[i].getID_MC()); damA.push_back(i);
                 if(tempmatescen == "INDEX_EBV_PED" || tempmatescen == "INDEX_EBV_GEN" || tempmatescen == "INDEX_EBV_ROH")
                 {
-                    damVALUE.push_back(population[searchlocation].getEBV());
+                    damVALUE.push_back((population[searchlocation].get_EBVvect())[0]);
                 }
                 if(tempmatescen == "INDEX_TBV_PED" || tempmatescen == "INDEX_TBV_GEN" || tempmatescen == "INDEX_TBV_ROH")
                 {
-                    damVALUE.push_back(population[searchlocation].getGenotypicValue());
+                    damVALUE.push_back((population[searchlocation].get_BVvect())[0]);
                 }
                 if(tempmatescen == "INDEX_PHEN_PED" || tempmatescen == "INDEX_PHEN_GEN" || tempmatescen == "INDEX_PHEN_ROH")
                 {
-                    damVALUE.push_back(population[searchlocation].getPhenotype());
+                    damVALUE.push_back((population[searchlocation].get_Phenvect())[0]);
                 }
             }
         }
@@ -1546,7 +1548,7 @@ void genetic_inbreedvalueindex(vector <MatingClass> &matingindividuals, vector <
         double* subsetrelationship = new double[matingindividuals.size()*matingindividuals.size()];     /* Used to store subset of relationship matrix */
         for(int i = 0; i < (matingindividuals.size()*matingindividuals.size()); i++){subsetrelationship[i] = 0.0;}
         //pedigree_relationship(Pheno_Pedigree_File,parentID, subsetrelationship);                        /* Generate Relationship Matrix */
-        pedigree_relationship_Colleau(Pheno_Pedigree_File,parentID, subsetrelationship);
+        pedigree_relationship_Colleau(OUTPUTFILES,parentID, subsetrelationship);
         //std::ofstream outputevarel("evarelationship", std::ios_base::app | std::ios_base::out);
         //for(int i = 0; i < parentID.size(); i++)
         //{
