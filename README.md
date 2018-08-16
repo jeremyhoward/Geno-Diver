@@ -35,7 +35,7 @@ Source Code Files:
 - zfstream.h
 - makefile
 
-If there are any questions or comments please contact me at "jthoward@ncsu.edu".
+If there are any questions or comments please contact me at "jeremy.howard06@gmail.com".
 
 
 
