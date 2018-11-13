@@ -52,6 +52,7 @@ void outputfiles::Updateloc_qtl_class_object(std::string temp){loc_qtl_class_obj
 void outputfiles::Updateloc_Pheno_Pedigreet(std::string temp){loc_Pheno_Pedigree=temp;}
 void outputfiles::Updateloc_Pheno_GMatrix(std::string temp){loc_Pheno_GMatrix=temp;}
 void outputfiles::Updateloc_Pheno_GMatrixImp(std::string temp){loc_Pheno_GMatrixImp=temp;}
+void outputfiles::Updateloc_Temporary_EBV(std::string temp){loc_Temporary_EBV=temp;}
 void outputfiles::Updateloc_Master_DF(std::string temp){loc_Master_DF=temp;}
 void outputfiles::Updateloc_Master_Genotype(std::string temp){loc_Master_Genotype=temp;}
 void outputfiles::Updateloc_Master_Genotype_zip(std::string temp){loc_Master_Genotype_zip=temp;}
@@ -92,6 +93,7 @@ void GenerateOutputFiles(parameters &SimParameters, outputfiles &OUTPUTFILES,str
     OUTPUTFILES.Updateloc_qtl_class_object(path + "/" + SimParameters.getOutputFold() + "/QTL_new_old_Class");
     OUTPUTFILES.Updateloc_Pheno_Pedigreet(path + "/" + SimParameters.getOutputFold() + "/Pheno_Pedigree");
     OUTPUTFILES.Updateloc_Pheno_GMatrix(path + "/" + SimParameters.getOutputFold() + "/Pheno_GMatrix");
+    OUTPUTFILES.Updateloc_Temporary_EBV(path + "/" + SimParameters.getOutputFold() + "/TemporaryEBV");
     OUTPUTFILES.Updateloc_Pheno_GMatrixImp(path + "/" + SimParameters.getOutputFold() + "/Pheno_GMatrixImputed");
     OUTPUTFILES.Updateloc_Master_DF(path + "/" + SimParameters.getOutputFold() + "/Master_DF");
     OUTPUTFILES.Updateloc_Master_Genotype(path + "/" + SimParameters.getOutputFold() + "/Master_Genotypes");
@@ -1701,6 +1703,7 @@ void CleanUpSimulation(outputfiles &OUTPUTFILES)
     command = "rm -rf " + OUTPUTFILES.getloc_BinaryGinv_Matrix() + " || true"; system(command.c_str());
     command = "rm -rf " + OUTPUTFILES.getloc_Bayes_MCMC_Samples() + " || true"; system(command.c_str());
     command = "rm -rf " + OUTPUTFILES.getloc_Bayes_PosteriorMeans() + " || true"; system(command.c_str());
+    command = "rm -rf " + OUTPUTFILES.getloc_Temporary_EBV() + " || true"; system(command.c_str());
 }
 /***************************************************************************************************************************/
 /* If you have multiple replicates create a new directory within this folder to store them and just attach seed afterwards */

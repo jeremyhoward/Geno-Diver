@@ -18,10 +18,11 @@ private:
     string loc_foundergenofile = "";        /* Stores sequence file for founder genotypes */
     string loc_qtl_class_object = "";       /* All qtl/ftl information */
     string loc_Pheno_Pedigree = "";         /* Stores pedigree relationship input */
-    string loc_Pheno_GMatrix = "";          /* Stores genomic relationship input */
-    string loc_Pheno_GMatrixImp = "";       /* Stores genomic relationship input for imputated matrix */
+    string loc_Pheno_GMatrix = "";          /* Stores genomic relationship input (deletes at end of program)*/
+    string loc_Temporary_EBV = "";          /* Stores current ebvs for all animals (deletes at end of program)*/
+    string loc_Pheno_GMatrixImp = "";       /* Stores genomic relationship input for imputated matrix (deletes at end of program)*/
     string loc_Master_DF = "";              /* Stores full data for an animal */
-    string loc_Master_Genotype = "";        /* Stores full genotype for an animal */
+    string loc_Master_Genotype = "";        /* Stores full genotype for an animal (deletes at end of program)*/
     string loc_Master_Genotype_zip = "";    /* Stores full genotype for an animal in compressed format */
     string loc_BinaryG_Matrix = "";         /* Stores genomic relationship in binary format */
     string loc_Binarym_Matrix = "";         /* Stores genomic relationship inverse matrix */
@@ -74,6 +75,9 @@ public:
     /* loc_Pheno_GMatrix */
     std::string getloc_Pheno_GMatrix(){return loc_Pheno_GMatrix;}
     void Updateloc_Pheno_GMatrix(std::string temp);
+    /* loc_Temporary_EBV */
+    std::string getloc_Temporary_EBV(){return loc_Temporary_EBV;}
+    void Updateloc_Temporary_EBV(std::string temp);
     /* loc_Pheno_GMatrixImp */
     std::string getloc_Pheno_GMatrixImp(){return loc_Pheno_GMatrixImp;}
     void Updateloc_Pheno_GMatrixImp(std::string temp);
