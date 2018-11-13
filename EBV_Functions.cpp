@@ -1590,6 +1590,15 @@ void Setup_blup(parameters &SimParameters,vector <Animal> &population,vector < t
         estimatedsolutions.erase(estimatedsolutions.begin()+0);
         estimatedsolutions.erase(estimatedsolutions.begin()+0);
     }
+    /* Save ebvs in temporary file (first clear on old file) */
+    fstream rmebv; rmebv.open(OUTPUTFILES.getloc_Temporary_EBV().c_str(), std::fstream::out | std::fstream::trunc); rmebv.close();
+    std::ofstream outebv(OUTPUTFILES.getloc_Temporary_EBV().c_str(), std::ios_base::app | std::ios_base::out);
+    for(int i = 0; i < animal.size(); i++)
+    {
+        outebv << animal[i] << " ";
+        if(animal.size() == Phenotype.size()){outebv << estimatedsolutions[i] << endl;}
+        if(2*animal.size() == Phenotype.size()){outebv << estimatedsolutions[i] << " " << estimatedsolutions[i+animal.size()] << endl;}
+    }
     for(int i = 0; i < population.size(); i++)
     {
         int j = 0;                                                  /* Counter for population spot */
